@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <ctime>
 #include <algorithm>
+#include <iterator>
 
 class SensorSimulator {
 public:
@@ -88,10 +89,10 @@ void demonstrateSystem() {
     auto fused_targets = detector.fuseSensors(radar_targets, thermal_targets, optical_targets);
     detector.trackTargets(fused_targets);
     
-    detector = TargetDetector();
+detector = TargetDetector();
     
     for (const auto& target : fused_targets) {
-        detector.detected_targets.push_back(target);
+        detector.addTarget(target);
     }
     
     detector.printTargets();

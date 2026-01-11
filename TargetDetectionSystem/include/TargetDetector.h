@@ -6,6 +6,8 @@
 #include <string>
 #include <chrono>
 #include <memory>
+#include <iostream>
+#include <algorithm>
 
 enum class TargetType {
     RADAR,
@@ -31,6 +33,7 @@ struct Target {
     ThreatLevel threat_level;
     std::chrono::system_clock::time_point detection_time;
     std::string description;
+};
 
 class TargetDetector {
 private:
@@ -70,6 +73,7 @@ public:
     
     // Utility methods
     void clearTargets();
+    void addTarget(const Target& target);
     std::vector<Target> getDetectedTargets() const;
     void printTargets() const;
     size_t getTargetCount() const;
