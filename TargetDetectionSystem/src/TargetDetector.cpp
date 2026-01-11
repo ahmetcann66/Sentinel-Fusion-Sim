@@ -2,8 +2,10 @@
 #include <algorithm>
 #include <iostream>
 #include <iomanip>
+#include <chrono>
 
-TargetDetector::TargetDetector() : next_target_id(1) {}
+TargetDetector::TargetDetector(double fusion_thresh, double noise_thresh) 
+    : next_target_id(1), fusion_threshold(fusion_thresh), noise_threshold(noise_thresh) {}
 
 double TargetDetector::calculateDistance(const Target& t1, const Target& t2) {
     return sqrt(pow(t1.x - t2.x, 2) + pow(t1.y - t2.y, 2) + pow(t1.z - t2.z, 2));
