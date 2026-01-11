@@ -23,6 +23,7 @@ include_directories(include)
 # Source files
 set(SOURCES
     src/TargetDetector.cpp
+    src/SensorSimulator.cpp
     src/main.cpp
 )
 
