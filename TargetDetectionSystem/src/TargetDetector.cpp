@@ -4,6 +4,26 @@
 #include <iomanip>
 #include <chrono>
 
+std::string TargetDetector::typeToString(TargetType type) {
+    switch (type) {
+        case TargetType::RADAR: return "Radar";
+        case TargetType::THERMAL: return "Thermal";
+        case TargetType::OPTICAL: return "Optical";
+        case TargetType::FUSED: return "Fused";
+        default: return "Unknown";
+    }
+}
+
+std::string TargetDetector::threatToString(ThreatLevel level) {
+    switch (level) {
+        case ThreatLevel::LOW: return "Low";
+        case ThreatLevel::MEDIUM: return "Medium";
+        case ThreatLevel::HIGH: return "High";
+        case ThreatLevel::CRITICAL: return "Critical";
+        default: return "Unknown";
+    }
+}
+
 TargetDetector::TargetDetector(double fusion_thresh, double noise_thresh) 
     : next_target_id(1), fusion_threshold(fusion_thresh), noise_threshold(noise_thresh) {}
 
@@ -11,8 +31,8 @@ double TargetDetector::calculateDistance(const Target& t1, const Target& t2) {
     return sqrt(pow(t1.x - t2.x, 2) + pow(t1.y - t2.y, 2) + pow(t1.z - t2.z, 2));
 }
 
-bool TargetDetector::isValidTarget(double confidence, double size) {
-    return confidence > 0.5 && size > 0.1;
+bool TargetDetector::isValidTarget(const Target& target) {
+    return target.confidence > 0.5 && target.size > 0.1;
 }
 
 std::vector<Target> TargetDetector::detectRadarTargets(const std::vector<std::vector<double>>& radar_data) {
@@ -34,9 +54,9 @@ std::vector<Target> TargetDetector::detectRadarTargets(const std::vector<std::ve
                 target.velocity = std::sqrt(x*x + y*y) * 0.1;
                 target.size = signal_strength * 2.0;
                 target.confidence = std::min(signal_strength * 1.5, 1.0);
-                target.type = "Radar";
+                target.type = TargetType::RADAR;
                 
-                if (isValidTarget(target.confidence, target.size)) {
+if (isValidTarget(target)) {
                     targets.push_back(target);
                 }
             }
@@ -65,9 +85,9 @@ std::vector<Target> TargetDetector::detectThermalTargets(const std::vector<std::
                 target.velocity = std::sqrt(x*x + y*y) * 0.05;
                 target.size = std::max((temperature - 20.0) * 0.3, 0.5);
                 target.confidence = std::min((temperature - 20.0) / 20.0, 1.0);
-                target.type = "Thermal";
+                target.type = TargetType::THERMAL;
                 
-                if (isValidTarget(target.confidence, target.size)) {
+if (isValidTarget(target)) {
                     targets.push_back(target);
                 }
             }
@@ -99,9 +119,9 @@ std::vector<Target> TargetDetector::detectOpticalTargets(const std::vector<std::
                 target.velocity = std::sqrt(x*x + y*y) * 0.08;
                 target.size = brightness * 3.0;
                 target.confidence = std::min(optical_confidence * 2.0, 1.0);
-                target.type = "Optical";
+                target.type = TargetType::OPTICAL;
                 
-                if (isValidTarget(target.confidence, target.size)) {
+if (isValidTarget(target)) {
                     targets.push_back(target);
                 }
             }
@@ -119,7 +139,7 @@ void TargetDetector::filterNoise(std::vector<Target>& targets) {
     );
 }
 
-void TargetDetector::trackTargets(std::vector<Target>& current_targets) {
+void TargetDetector::trackTargets(std::vector<Target>& current_targets, double time_delta) {
     for (auto& target : current_targets) {
         double noise_x = (rand() % 100 - 50) / 100.0;
         double noise_y = (rand() % 100 - 50) / 100.0;
@@ -149,7 +169,8 @@ std::vector<Target> TargetDetector::fuseSensors(const std::vector<Target>& radar
             if (distance < 5.0) {
                 fused.confidence = std::min(fused.confidence + target.confidence * 0.3, 1.0);
                 fused.size = (fused.size + target.size) / 2.0;
-                fused.type += "+" + target.type;
+                // Fused targets get a special type
+                fused.type = TargetType::FUSED;
                 found_similar = true;
                 break;
             }
@@ -185,8 +206,8 @@ void TargetDetector::printTargets() const {
     std::cout << std::string(75, '-') << std::endl;
     
     for (const auto& target : detected_targets) {
-        std::cout << std::setw(4) << target.id << " | "
-                  << std::setw(8) << target.type << " | "
+std::cout << std::setw(4) << target.id << " | "
+                  << std::setw(8) << typeToString(target.type) << " | "
                   << std::setw(8) << std::fixed << std::setprecision(2) << target.x << " | "
                   << std::setw(8) << std::fixed << std::setprecision(2) << target.y << " | "
                   << std::setw(8) << std::fixed << std::setprecision(2) << target.z << " | "
