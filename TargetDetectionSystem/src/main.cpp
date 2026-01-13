@@ -6,6 +6,7 @@
 #include <ctime>
 #include <algorithm>
 #include <iterator>
+#include <chrono>
 
 void demonstrateEnhancedSystem() {
     TargetDetector detector;
@@ -71,22 +72,53 @@ detector = TargetDetector();
         detector.addTarget(target);
     }
     
+    // Demonstrate advanced features
+    auto high_priority = detector.getHighPriorityTargets();
+    auto critical_targets = detector.getTargetsByThreatLevel(ThreatLevel::CRITICAL);
+    
+    // Predict future positions
+    detector.predictTargetPositions(fused_targets, 2.0); // 2 seconds ahead
+    
     detector.printTargets();
     
-    std::cout << "=== SİSTEM ÖZETİ ===" << std::endl;
+    std::cout << "=== GELİŞMİŞ SİSTEM ÖZETİ ===" << std::endl;
     std::cout << "Toplam füze hedefi: " << fused_targets.size() << std::endl;
-    std::cout << "Yüksek öncelikli hedefler (>70% güven): " << std::count_if(fused_targets.begin(), fused_targets.end(),
+    std::cout << "Yüksek öncelikli hedefler: " << high_priority.size() << std::endl;
+    std::cout << "Kritik tehdit seviyesi: " << critical_targets.size() << std::endl;
+    std::cout << "Yüksek güvenilirlikli (>70%): " << std::count_if(fused_targets.begin(), fused_targets.end(),
                                                     [](const Target& t) { return t.confidence > 0.7; }) << std::endl;
-    std::cout << "Hızlı hedefler (>5 m/s): " << std::count_if(fused_targets.begin(), fused_targets.end(),
-                                           [](const Target& t) { return t.velocity > 5.0; }) << std::endl;
+    std::cout << "Hızlı hedefler (>10 m/s): " << std::count_if(fused_targets.begin(), fused_targets.end(),
+                                           [](const Target& t) { return t.velocity > 10.0; }) << std::endl;
+    
+    // Performance metrics
+    auto start_time = std::chrono::high_resolution_clock::now();
+    detector.fuseSensors(radar_targets, thermal_targets, optical_targets);
+    auto end_time = std::chrono::high_resolution_clock::now();
+    auto processing_time = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+    
+    std::cout << "Sensör füzyon işlem süresi: " << processing_time.count() << " μs" << std::endl;
+    std::cout << "Füzyon eşiği: " << detector.getFusionThreshold() << " birim" << std::endl;
+    std::cout << "Gürültü eşiği: " << detector.getNoiseThreshold() << std::endl;
 }
 
 int main() {
     try {
         demonstrateEnhancedSystem();
+    } catch (const std::invalid_argument& e) {
+        std::cerr << "❌ Geçersiz argüman hatası: " << e.what() << std::endl;
+        return 2;
+    } catch (const std::runtime_error& e) {
+        std::cerr << "❌ Çalışma zamanı hatası: " << e.what() << std::endl;
+        return 3;
+    } catch (const std::bad_alloc& e) {
+        std::cerr << "❌ Bellek tahsis hatası: " << e.what() << std::endl;
+        return 4;
     } catch (const std::exception& e) {
-        std::cerr << "❌ Hata: " << e.what() << std::endl;
+        std::cerr << "❌ Genel hata: " << e.what() << std::endl;
         return 1;
+    } catch (...) {
+        std::cerr << "❌ Bilinmeyen hata oluştu!" << std::endl;
+        return 5;
     }
     
     return 0;
