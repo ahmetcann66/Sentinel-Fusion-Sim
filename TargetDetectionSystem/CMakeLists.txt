@@ -8,8 +8,15 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # Compiler options
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wpedantic")
-    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
+    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -march=native -mtune=native -flto -ffast-math -funroll-loops")
     set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -DDEBUG")
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O2 -g -DNDEBUG -march=native")
+endif()
+
+# MSVC optimizations
+if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    set(CMAKE_CXX_FLAGS_RELEASE "/O2 /Ob2 /DNDEBUG /GL")
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "/O2 /Ob1 /DNDEBUG /Zi")
 endif()
 
 # Build type
@@ -27,8 +34,17 @@ set(SOURCES
     src/main.cpp
 )
 
+# Benchmark executable
+set(BENCHMARK_SOURCES
+    src/TargetDetector.cpp
+    src/benchmark.cpp
+)
+
 # Create executable
 add_executable(target_detection ${SOURCES})
+
+# Create benchmark executable
+add_executable(benchmark ${BENCHMARK_SOURCES})
 
 # Find required packages
 find_package(OpenCV REQUIRED)
@@ -38,6 +54,15 @@ endif()
 
 # Link libraries
 target_link_libraries(target_detection PRIVATE ${OpenCV_LIBS})
+target_link_libraries(benchmark PRIVATE ${OpenCV_LIBS})
+
+# Performance optimizations
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    target_compile_options(target_detection PRIVATE -flto)
+    target_link_options(target_detection PRIVATE -flto)
+    target_compile_options(benchmark PRIVATE -flto)
+    target_link_options(benchmark PRIVATE -flto)
+endif()
 
 # Math library for Unix systems
 if(UNIX)

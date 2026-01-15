@@ -8,6 +8,7 @@
 #include <memory>
 #include <iostream>
 #include <algorithm>
+#include <unordered_map>
 
 enum class TargetType {
     RADAR,
@@ -38,26 +39,32 @@ struct Target {
 class TargetDetector {
 private:
     std::vector<Target> detected_targets;
+    std::unordered_map<int, Target> target_history;
     int next_target_id;
     double fusion_threshold;
     double noise_threshold;
     
     // Private helper methods
-    double calculateDistance(const Target& t1, const Target& t2);
-    bool isValidTarget(const Target& target);
-    ThreatLevel calculateThreatLevel(const Target& target);
-    std::string typeToString(TargetType type);
-    std::string threatToString(ThreatLevel level);
+    double calculateDistance(const Target& t1, const Target& t2) const;
+    bool isValidTarget(const Target& target) const;
+    ThreatLevel calculateThreatLevel(const Target& target) const;
+    std::string typeToString(TargetType type) const;
+    std::string threatToString(ThreatLevel level) const;
     void updateTargetVelocity(Target& target, double dt);
-    bool isDuplicateTarget(const Target& new_target, const std::vector<Target>& existing_targets);
+    bool isDuplicateTarget(const Target& new_target, const std::vector<Target>& existing_targets) const;
     
 public:
     explicit TargetDetector(double fusion_thresh = 5.0, double noise_thresh = 0.3);
     
-    // Detection methods
+// Detection methods
     std::vector<Target> detectRadarTargets(const std::vector<std::vector<double>>& radar_data);
     std::vector<Target> detectThermalTargets(const std::vector<std::vector<double>>& thermal_data);
     std::vector<Target> detectOpticalTargets(const std::vector<std::vector<double>>& optical_data);
+    
+    // Optimized detection methods with move semantics
+    std::vector<Target> detectRadarTargetsOptimized(const std::vector<std::vector<double>>& radar_data);
+    std::vector<Target> detectThermalTargetsOptimized(const std::vector<std::vector<double>>& thermal_data);
+    std::vector<Target> detectOpticalTargetsOptimized(const std::vector<std::vector<double>>& optical_data);
     
     // Processing methods
     void filterNoise(std::vector<Target>& targets);

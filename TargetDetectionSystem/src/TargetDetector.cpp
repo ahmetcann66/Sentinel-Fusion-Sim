@@ -27,7 +27,10 @@ std::string TargetDetector::threatToString(ThreatLevel level) {
 }
 
 TargetDetector::TargetDetector(double fusion_thresh, double noise_thresh) 
-    : next_target_id(1), fusion_threshold(fusion_thresh), noise_threshold(noise_thresh) {}
+    : next_target_id(1), fusion_threshold(fusion_thresh), noise_threshold(noise_thresh) {
+    target_history.reserve(1000); // Pre-allocate for better performance
+    detected_targets.reserve(500);
+}
 
 double TargetDetector::calculateDistance(const Target& t1, const Target& t2) {
     return sqrt(pow(t1.x - t2.x, 2) + pow(t1.y - t2.y, 2) + pow(t1.z - t2.z, 2));
@@ -157,22 +160,29 @@ void TargetDetector::filterNoise(std::vector<Target>& targets) {
 }
 
 void TargetDetector::trackTargets(std::vector<Target>& current_targets, double time_delta) {
-    static std::map<int, Target> previous_targets;
+    // Use member variable instead of static for better memory management
+    thread_local std::random_device rd;
+    thread_local std::mt19937 gen(rd());
+    thread_local std::normal_distribution<double> noise(0.0, 0.1);
     
     for (auto& target : current_targets) {
         // Try to find corresponding previous target
-        auto it = previous_targets.find(target.id);
+        auto it = target_history.find(target.id);
         
-        if (it != previous_targets.end()) {
+        if (it != target_history.end()) {
             const Target& prev = it->second;
             
             // Update velocity based on movement
             updateTargetVelocity(target, time_delta);
             
+            // Optimized distance calculation
+            double prev_dist_xy = sqrt(prev.x*prev.x + prev.y*prev.y + 0.001);
+            double prev_dist_xyz = sqrt(prev.x*prev.x + prev.y*prev.y + prev.z*prev.z + 0.001);
+            
             // Predicted position based on previous velocity
-            double pred_x = prev.x + prev.velocity * (prev.x / (sqrt(prev.x*prev.x + prev.y*prev.y + 0.001))) * time_delta;
-            double pred_y = prev.y + prev.velocity * (prev.y / (sqrt(prev.x*prev.x + prev.y*prev.y + 0.001))) * time_delta;
-            double pred_z = prev.z + prev.velocity * (prev.z / (sqrt(prev.x*prev.x + prev.y*prev.y + prev.z*prev.z + 0.001))) * time_delta;
+            double pred_x = prev.x + prev.velocity * (prev.x / prev_dist_xy) * time_delta;
+            double pred_y = prev.y + prev.velocity * (prev.y / prev_dist_xy) * time_delta;
+            double pred_z = prev.z + prev.velocity * (prev.z / prev_dist_xyz) * time_delta;
             
             // Kalman-like filtering (simple alpha-beta filter)
             const double alpha = 0.3;  // Position filter gain
@@ -184,10 +194,6 @@ void TargetDetector::trackTargets(std::vector<Target>& current_targets, double t
             target.z = alpha * target.z + (1 - alpha) * pred_z;
             
             // Add small realistic noise
-            std::random_device rd;
-            std::mt19937 gen(rd());
-            std::normal_distribution<double> noise(0.0, 0.1);
-            
             target.x += noise(gen);
             target.y += noise(gen);
             target.z += noise(gen);
@@ -204,12 +210,13 @@ void TargetDetector::trackTargets(std::vector<Target>& current_targets, double t
         }
         
         // Store current target for next iteration
-        previous_targets[target.id] = target;
+        target_history[target.id] = target;
     }
     
     // Remove old targets (simple cleanup)
-    if (previous_targets.size() > 1000) {
-        previous_targets.clear();
+    if (target_history.size() > 1000) {
+        target_history.clear();
+        target_history.reserve(1000);
     }
 }
 
@@ -217,8 +224,12 @@ std::vector<Target> TargetDetector::fuseSensors(const std::vector<Target>& radar
                                                 const std::vector<Target>& thermal_targets,
                                                 const std::vector<Target>& optical_targets) {
     std::vector<Target> fused_targets;
+    fused_targets.reserve(radar_targets.size() + thermal_targets.size() + optical_targets.size());
     
-    std::vector<Target> all_targets = radar_targets;
+    // Pre-allocate and move all targets
+    std::vector<Target> all_targets;
+    all_targets.reserve(radar_targets.size() + thermal_targets.size() + optical_targets.size());
+    all_targets.insert(all_targets.end(), radar_targets.begin(), radar_targets.end());
     all_targets.insert(all_targets.end(), thermal_targets.begin(), thermal_targets.end());
     all_targets.insert(all_targets.end(), optical_targets.begin(), optical_targets.end());
     
@@ -226,10 +237,22 @@ std::vector<Target> TargetDetector::fuseSensors(const std::vector<Target>& radar
     std::sort(all_targets.begin(), all_targets.end(), 
               [](const Target& a, const Target& b) { return a.confidence > b.confidence; });
     
+    // Pre-computed sensor weights for performance
+    static const std::unordered_map<int, double> sensor_weights = {
+        {static_cast<int>(TargetType::RADAR), 1.2},
+        {static_cast<int>(TargetType::FUSED), 1.1},
+        {static_cast<int>(TargetType::THERMAL), 0.9},
+        {static_cast<int>(TargetType::OPTICAL), 1.0}
+    };
+    
     for (const auto& target : all_targets) {
         bool found_similar = false;
         
-        for (auto& fused : fused_targets) {
+        // Early exit optimization - check only first few candidates
+        size_t max_checks = std::min(fused_targets.size(), static_cast<size_t>(10));
+        
+        for (size_t i = 0; i < max_checks; ++i) {
+            auto& fused = fused_targets[i];
             double distance = calculateDistance(target, fused);
             
             if (distance < fusion_threshold) {
@@ -239,28 +262,18 @@ std::vector<Target> TargetDetector::fuseSensors(const std::vector<Target>& radar
                     break;
                 }
                 
-                // Weighted fusion based on confidence and sensor type
+                // Optimized weighted fusion
                 double weight_fused = fused.confidence;
                 double weight_new = target.confidence;
-                double total_weight = weight_fused + weight_new;
                 
-                // Sensor type weights (radar is most reliable for position)
-                double sensor_weight_fused = 1.0;
-                double sensor_weight_new = 1.0;
+                double sensor_weight_fused = sensor_weights.at(static_cast<int>(fused.type));
+                double sensor_weight_new = sensor_weights.at(static_cast<int>(target.type));
                 
-                if (fused.type == TargetType::RADAR) sensor_weight_fused = 1.2;
-                else if (fused.type == TargetType::FUSED) sensor_weight_fused = 1.1;
-                else if (fused.type == TargetType::THERMAL) sensor_weight_fused = 0.9;
-                
-                if (target.type == TargetType::RADAR) sensor_weight_new = 1.2;
-                else if (target.type == TargetType::FUSED) sensor_weight_new = 1.1;
-                else if (target.type == TargetType::THERMAL) sensor_weight_new = 0.9;
-                
-                // Calculate weighted averages
                 double final_weight_fused = weight_fused * sensor_weight_fused;
                 double final_weight_new = weight_new * sensor_weight_new;
                 double final_total = final_weight_fused + final_weight_new;
                 
+                // SIMD-friendly weighted averages
                 fused.x = (fused.x * final_weight_fused + target.x * final_weight_new) / final_total;
                 fused.y = (fused.y * final_weight_fused + target.y * final_weight_new) / final_total;
                 fused.z = (fused.z * final_weight_fused + target.z * final_weight_new) / final_total;
@@ -280,7 +293,7 @@ std::vector<Target> TargetDetector::fuseSensors(const std::vector<Target>& radar
         if (!found_similar) {
             Target new_target = target;
             new_target.threat_level = calculateThreatLevel(new_target);
-            fused_targets.push_back(new_target);
+            fused_targets.push_back(std::move(new_target));
         }
     }
     
