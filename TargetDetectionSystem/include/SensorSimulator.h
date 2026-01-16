@@ -5,13 +5,17 @@
 #include <chrono>
 #include <random>
 #include <cmath>
+#include <span>
+#include <optional>
+#include <atomic>
+#include <mutex>
 
-enum class WeatherCondition {
-    CLEAR,
-    CLOUDY,
-    RAIN,
-    FOG,
-    STORM
+enum class WeatherCondition : uint8_t {
+    CLEAR = 0,
+    CLOUDY = 1,
+    RAIN = 2,
+    FOG = 3,
+    STORM = 4
 };
 
 struct SensorConfig {
@@ -32,8 +36,11 @@ struct EnvironmentalFactors {
 
 class EnhancedSensorSimulator {
 private:
+    mutable std::mutex rng_mutex;
     std::mt19937 rng;
     std::normal_distribution<double> gaussian_noise;
+    std::atomic<double> sensor_reliability{1.0};
+    std::atomic<bool> failure_simulation{false};
     
     double calculateWeatherImpact(WeatherCondition weather, double base_signal);
     double addGaussianNoise(double value, double std_dev);
@@ -41,49 +48,57 @@ private:
     double calculateSignalAttenuation(double distance, double frequency, WeatherCondition weather);
     
 public:
-    EnhancedSensorSimulator();
+    explicit EnhancedSensorSimulator(uint32_t seed = std::random_device{}());
+    ~EnhancedSensorSimulator() = default;
     
-    // Sensor configurations
-    SensorConfig getRadarConfig() const;
-    SensorConfig getThermalConfig() const;
-    SensorConfig getOpticalConfig() const;
+    // Rule of Five
+    EnhancedSensorSimulator(const EnhancedSensorSimulator&) = delete;
+    EnhancedSensorSimulator& operator=(const EnhancedSensorSimulator&) = delete;
+    EnhancedSensorSimulator(EnhancedSensorSimulator&&) = delete;
+    EnhancedSensorSimulator& operator=(EnhancedSensorSimulator&&) = delete;
+    
+    // Thread-safe sensor configurations
+    [[nodiscard]] SensorConfig getRadarConfig() const noexcept;
+    [[nodiscard]] SensorConfig getThermalConfig() const noexcept;
+    [[nodiscard]] SensorConfig getOpticalConfig() const noexcept;
     
     // Environmental simulation
-    EnvironmentalFactors generateEnvironmentalConditions();
-    double calculateEnvironmentalNoise(const EnvironmentalFactors& env, double base_noise);
+    [[nodiscard]] EnvironmentalFactors generateEnvironmentalConditions();
+    [[nodiscard]] double calculateEnvironmentalNoise(const EnvironmentalFactors& env, double base_noise) const noexcept;
     
-    // Enhanced data generation with noise
-    std::vector<std::vector<double>> generateRealisticRadarData(
+    // Enhanced data generation with noise and modern C++ signatures
+    [[nodiscard]] std::vector<std::vector<double>> generateRealisticRadarData(
         int num_targets, 
         const EnvironmentalFactors& env = {}
     );
     
-    std::vector<std::vector<double>> generateRealisticThermalData(
+    [[nodiscard]] std::vector<std::vector<double>> generateRealisticThermalData(
         int num_targets,
         const EnvironmentalFactors& env = {}
     );
     
-    std::vector<std::vector<double>> generateRealisticOpticalData(
+    [[nodiscard]] std::vector<std::vector<double>> generateRealisticOpticalData(
         int num_targets,
         const EnvironmentalFactors& env = {}
     );
     
-    // Advanced target movement simulation
-    std::vector<std::vector<double>> simulateMovingTarget(
+    // Advanced target movement simulation with optimized return
+    [[nodiscard]] std::vector<std::vector<double>> simulateMovingTarget(
         double start_x, double start_y, double start_z,
         double velocity_x, double velocity_y, double velocity_z,
         int time_steps, 
         const EnvironmentalFactors& env = {}
     );
     
-    // Utility methods
-    double calculateSignalToNoiseRatio(double signal, double noise);
-    bool isDetectable(double snr, double threshold = 6.0);
-    std::string weatherToString(WeatherCondition weather);
+    // Thread-safe utility methods
+    [[nodiscard]] double calculateSignalToNoiseRatio(double signal, double noise) const noexcept;
+    [[nodiscard]] bool isDetectable(double snr, double threshold = 6.0) const noexcept;
+    [[nodiscard]] std::string weatherToString(WeatherCondition weather) const noexcept;
     
-    // Performance metrics
-    void simulateSensorFailure(double failure_probability);
-    double getSensorReliability() const;
+    // Performance metrics with atomic operations
+    void simulateSensorFailure(double failure_probability) noexcept;
+    [[nodiscard]] double getSensorReliability() const noexcept;
+    void resetSensorReliability() noexcept;
 };
 
 #endif

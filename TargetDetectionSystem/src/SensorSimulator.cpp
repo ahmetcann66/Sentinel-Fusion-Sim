@@ -1,13 +1,16 @@
 #include "SensorSimulator.h"
 #include <iostream>
 #include <algorithm>
+#include <thread>
+#include <future>
 
-EnhancedSensorSimulator::EnhancedSensorSimulator() 
-    : rng(std::chrono::steady_clock::now().time_since_epoch().count()),
-      gaussian_noise(0.0, 1.0) {
+// Modern constructor with seed parameter
+EnhancedSensorSimulator::EnhancedSensorSimulator(uint32_t seed) 
+    : rng(seed), gaussian_noise(0.0, 1.0) {
 }
 
-SensorConfig EnhancedSensorSimulator::getRadarConfig() const {
+// Thread-safe sensor configurations
+SensorConfig EnhancedSensorSimulator::getRadarConfig() const noexcept {
     return {
         .noise_level = 0.15,      // 15% noise
         .accuracy = 0.95,         // 95% accuracy
@@ -17,7 +20,7 @@ SensorConfig EnhancedSensorSimulator::getRadarConfig() const {
     };
 }
 
-SensorConfig EnhancedSensorSimulator::getThermalConfig() const {
+SensorConfig EnhancedSensorSimulator::getThermalConfig() const noexcept {
     return {
         .noise_level = 0.20,      // 20% noise
         .accuracy = 0.88,         // 88% accuracy
@@ -27,7 +30,7 @@ SensorConfig EnhancedSensorSimulator::getThermalConfig() const {
     };
 }
 
-SensorConfig EnhancedSensorSimulator::getOpticalConfig() const {
+SensorConfig EnhancedSensorSimulator::getOpticalConfig() const noexcept {
     return {
         .noise_level = 0.25,      // 25% noise
         .accuracy = 0.90,         // 90% accuracy
@@ -37,14 +40,17 @@ SensorConfig EnhancedSensorSimulator::getOpticalConfig() const {
     };
 }
 
+// Thread-safe environmental factors generation
 EnvironmentalFactors EnhancedSensorSimulator::generateEnvironmentalConditions() {
+    std::lock_guard<std::mutex> lock(rng_mutex);
+    
     std::uniform_int_distribution<int> weather_dist(0, 4);
     std::uniform_real_distribution<double> temp_dist(-10.0, 40.0);
     std::uniform_real_distribution<double> humidity_dist(20.0, 95.0);
     std::uniform_real_distribution<double> wind_dist(0.0, 25.0);
     std::uniform_real_distribution<double> pressure_dist(980.0, 1040.0);
     
-    return {
+    return EnvironmentalFactors{
         .weather = static_cast<WeatherCondition>(weather_dist(rng)),
         .temperature = temp_dist(rng),
         .humidity = humidity_dist(rng),
@@ -53,216 +59,222 @@ EnvironmentalFactors EnhancedSensorSimulator::generateEnvironmentalConditions() 
     };
 }
 
-double EnhancedSensorSimulator::calculateWeatherImpact(WeatherCondition weather, double base_signal) {
-    switch (weather) {
-        case WeatherCondition::CLEAR:
-            return 1.0;  // No impact
-        case WeatherCondition::CLOUDY:
-            return 0.85; // 15% signal loss
-        case WeatherCondition::RAIN:
-            return 0.70; // 30% signal loss
-        case WeatherCondition::FOG:
-            return 0.60; // 40% signal loss
-        case WeatherCondition::STORM:
-            return 0.45; // 55% signal loss
-        default:
-            return 1.0;
-    }
-}
-
-double EnhancedSensorSimulator::addGaussianNoise(double value, double std_dev) {
-    return value + gaussian_noise(rng) * std_dev;
-}
-
-double EnhancedSensorSimulator::calculateSignalAttenuation(double distance, double frequency, WeatherCondition weather) {
-    // Free space path loss formula
-    double path_loss = 20 * log10(distance) + 20 * log10(frequency) - 147.55;
+// Thread-safe environmental noise calculation
+double EnhancedSensorSimulator::calculateEnvironmentalNoise(
+    const EnvironmentalFactors& env, double base_noise) const noexcept {
     
-    // Weather impact
-    double weather_factor = calculateWeatherImpact(weather, 1.0);
-    
-    // Convert dB to linear scale
-    return pow(10, -path_loss / 10.0) * weather_factor;
-}
-
-double EnhancedSensorSimulator::calculateEnvironmentalNoise(const EnvironmentalFactors& env, double base_noise) {
-    double weather_noise = 0.0;
-    
+    double weather_factor = 1.0;
     switch (env.weather) {
-        case WeatherCondition::RAIN:
-            weather_noise = 0.1 + (env.wind_speed / 100.0);
-            break;
-        case WeatherCondition::STORM:
-            weather_noise = 0.2 + (env.wind_speed / 50.0);
-            break;
-        case WeatherCondition::FOG:
-            weather_noise = 0.15;
-            break;
-        default:
-            weather_noise = 0.05;
+        case WeatherCondition::CLEAR: weather_factor = 1.0; break;
+        case WeatherCondition::CLOUDY: weather_factor = 1.2; break;
+        case WeatherCondition::RAIN: weather_factor = 1.5; break;
+        case WeatherCondition::FOG: weather_factor = 2.0; break;
+        case WeatherCondition::STORM: weather_factor = 2.5; break;
     }
     
-    double temperature_noise = std::abs(env.temperature - 20.0) / 100.0;
-    double humidity_noise = env.humidity / 200.0;
+    const double temperature_factor = std::abs(env.temperature - 20.0) / 30.0;
+    const double humidity_factor = env.humidity / 100.0;
+    const double wind_factor = std::min(env.wind_speed / 25.0, 1.0);
     
-    return base_noise + weather_noise + temperature_noise + humidity_noise;
+    return base_noise * weather_factor * (1.0 + temperature_factor + humidity_factor + wind_factor) / 4.0;
 }
 
+// Enhanced radar data generation with environmental effects
 std::vector<std::vector<double>> EnhancedSensorSimulator::generateRealisticRadarData(
     int num_targets, const EnvironmentalFactors& env) {
     
-    std::vector<std::vector<double>> data;
-    auto config = getRadarConfig();
+    std::vector<std::vector<double>> radar_data;
+    radar_data.reserve(num_targets);
     
-    std::uniform_real_distribution<double> range_dist(config.min_range, config.max_range);
-    std::uniform_real_distribution<double> angle_dist(-180.0, 180.0);
-    std::uniform_real_distribution<double> altitude_dist(0.0, 20.0);
-    std::uniform_real_distribution<double> velocity_dist(0.0, 300.0);
+    const auto config = getRadarConfig();
+    const double env_noise = calculateEnvironmentalNoise(env, config.noise_level);
     
-    double environmental_noise = calculateEnvironmentalNoise(env, config.noise_level);
+    std::lock_guard<std::mutex> lock(rng_mutex);
     
-    for (int i = 0; i < num_targets; i++) {
-        // Detection probability check
-        std::uniform_real_distribution<double> detection_check(0.0, 1.0);
-        if (detection_check(rng) > config.detection_probability) {
-            continue; // Target not detected
+    std::uniform_real_distribution<double> x_dist(-config.max_range, config.max_range);
+    std::uniform_real_distribution<double> y_dist(-config.max_range, config.max_range);
+    std::uniform_real_distribution<double> z_dist(0.0, config.max_range / 2.0);
+    std::uniform_real_distribution<double> signal_dist(0.3, 1.0);
+    std::uniform_real_distribution<double> detection_dist(0.0, 1.0);
+    
+    for (int i = 0; i < num_targets; ++i) {
+        if (detection_dist(rng) > config.detection_probability * sensor_reliability.load()) {
+            continue; // Skip undetected targets
         }
         
-        double range = range_dist(rng);
-        double angle = angle_dist(rng) * M_PI / 180.0;
-        double altitude = altitude_dist(rng);
-        double velocity = velocity_dist(rng);
+        const double x = x_dist(rng);
+        const double y = y_dist(rng);
+        const double z = z_dist(rng);
+        const double distance = std::sqrt(x*x + y*y + z*z);
         
-        // Convert polar to cartesian
-        double x = range * cos(angle);
-        double y = range * sin(angle);
-        double z = altitude;
+        if (distance < config.min_range || distance > config.max_range) {
+            continue;
+        }
         
-        // Add environmental effects
-        double weather_impact = calculateWeatherImpact(env.weather, 1.0);
-        double signal_strength = (1.0 - range / config.max_range) * weather_impact;
-        signal_strength = addGaussianNoise(signal_strength, environmental_noise);
-        signal_strength = std::max(0.0, std::min(1.0, signal_strength));
+        double signal_strength = signal_dist(rng);
         
-        // Add noise to position
-        x = addGaussianNoise(x, environmental_noise * 5.0);
-        y = addGaussianNoise(y, environmental_noise * 5.0);
-        z = addGaussianNoise(z, environmental_noise * 0.5);
-        velocity = addGaussianNoise(velocity, environmental_noise * 10.0);
+        // Apply environmental noise
+        signal_strength += addGaussianNoise(signal_strength, env_noise);
+        signal_strength = std::clamp(signal_strength, 0.0, 1.0);
         
-        std::vector<double> reading = {x, y, z, signal_strength, velocity};
-        data.push_back(reading);
+        // Apply signal attenuation based on distance
+        const double attenuation = calculateSignalAttenuation(distance, 10e9, env.weather);
+        signal_strength *= attenuation;
+        
+        radar_data.push_back({x, y, z, signal_strength});
     }
     
-    return data;
+    return radar_data;
 }
 
+// Enhanced thermal data generation
 std::vector<std::vector<double>> EnhancedSensorSimulator::generateRealisticThermalData(
     int num_targets, const EnvironmentalFactors& env) {
     
-    std::vector<std::vector<double>> data;
-    auto config = getThermalConfig();
+    std::vector<std::vector<double>> thermal_data;
+    thermal_data.reserve(num_targets);
     
-    std::uniform_real_distribution<double> range_dist(config.min_range, config.max_range);
-    std::uniform_real_distribution<double> angle_dist(-180.0, 180.0);
-    std::uniform_real_distribution<double> altitude_dist(0.0, 15.0);
-    std::uniform_real_distribution<double> velocity_dist(0.0, 200.0);
+    const auto config = getThermalConfig();
+    const double env_noise = calculateEnvironmentalNoise(env, config.noise_level);
     
-    double environmental_noise = calculateEnvironmentalNoise(env, config.noise_level);
+    std::lock_guard<std::mutex> lock(rng_mutex);
     
-    for (int i = 0; i < num_targets; i++) {
-        std::uniform_real_distribution<double> detection_check(0.0, 1.0);
-        if (detection_check(rng) > config.detection_probability) {
+    std::uniform_real_distribution<double> x_dist(-config.max_range, config.max_range);
+    std::uniform_real_distribution<double> y_dist(-config.max_range, config.max_range);
+    std::uniform_real_distribution<double> z_dist(0.0, config.max_range / 3.0);
+    std::uniform_real_distribution<double> temp_dist(25.0, 150.0); // Temperature in Celsius
+    std::uniform_real_distribution<double> detection_dist(0.0, 1.0);
+    
+    for (int i = 0; i < num_targets; ++i) {
+        if (detection_dist(rng) > config.detection_probability * sensor_reliability.load()) {
             continue;
         }
         
-        double range = range_dist(rng);
-        double angle = angle_dist(rng) * M_PI / 180.0;
-        double altitude = altitude_dist(rng);
-        double velocity = velocity_dist(rng);
+        const double x = x_dist(rng);
+        const double y = y_dist(rng);
+        const double z = z_dist(rng);
+        const double distance = std::sqrt(x*x + y*y + z*z);
         
-        double x = range * cos(angle);
-        double y = range * sin(angle);
-        double z = altitude;
+        if (distance < config.min_range || distance > config.max_range) {
+            continue;
+        }
         
-        // Thermal signature calculation
-        double base_temperature = 25.0 + (velocity / 20.0); // Heat from friction
-        double weather_impact = calculateWeatherImpact(env.weather, 1.0);
-        double temperature = base_temperature * weather_impact + env.temperature * 0.1;
-        temperature = addGaussianNoise(temperature, environmental_noise * 2.0);
+        double temperature = temp_dist(rng);
         
-        // Add position noise
-        x = addGaussianNoise(x, environmental_noise * 8.0);
-        y = addGaussianNoise(y, environmental_noise * 8.0);
-        z = addGaussianNoise(z, environmental_noise * 1.0);
+        // Environmental effects on temperature detection
+        const double weather_impact = calculateWeatherImpact(env.weather, temperature);
+        temperature += addGaussianNoise(temperature, env_noise);
+        temperature = std::clamp(temperature * weather_impact, -50.0, 200.0);
         
-        std::vector<double> reading = {x, y, z, temperature, velocity};
-        data.push_back(reading);
+        thermal_data.push_back({x, y, z, temperature});
     }
     
-    return data;
+    return thermal_data;
 }
 
+// Enhanced optical data generation
 std::vector<std::vector<double>> EnhancedSensorSimulator::generateRealisticOpticalData(
     int num_targets, const EnvironmentalFactors& env) {
     
-    std::vector<std::vector<double>> data;
-    auto config = getOpticalConfig();
+    std::vector<std::vector<double>> optical_data;
+    optical_data.reserve(num_targets);
     
-    std::uniform_real_distribution<double> range_dist(config.min_range, config.max_range);
-    std::uniform_real_distribution<double> angle_dist(-180.0, 180.0);
-    std::uniform_real_distribution<double> altitude_dist(0.0, 10.0);
-    std::uniform_real_distribution<double> velocity_dist(0.0, 150.0);
+    const auto config = getOpticalConfig();
+    const double env_noise = calculateEnvironmentalNoise(env, config.noise_level);
     
-    double environmental_noise = calculateEnvironmentalNoise(env, config.noise_level);
+    std::lock_guard<std::mutex> lock(rng_mutex);
     
-    for (int i = 0; i < num_targets; i++) {
-        std::uniform_real_distribution<double> detection_check(0.0, 1.0);
-        if (detection_check(rng) > config.detection_probability) {
+    std::uniform_real_distribution<double> x_dist(-config.max_range, config.max_range);
+    std::uniform_real_distribution<double> y_dist(-config.max_range, config.max_range);
+    std::uniform_real_distribution<double> z_dist(0.0, config.max_range / 4.0);
+    std::uniform_real_distribution<double> brightness_dist(0.1, 1.0);
+    std::uniform_real_distribution<double> contrast_dist(0.1, 1.0);
+    std::uniform_real_distribution<double> detection_dist(0.0, 1.0);
+    
+    for (int i = 0; i < num_targets; ++i) {
+        if (detection_dist(rng) > config.detection_probability * sensor_reliability.load()) {
             continue;
         }
         
-        double range = range_dist(rng);
-        double angle = angle_dist(rng) * M_PI / 180.0;
-        double altitude = altitude_dist(rng);
-        double velocity = velocity_dist(rng);
+        const double x = x_dist(rng);
+        const double y = y_dist(rng);
+        const double z = z_dist(rng);
+        const double distance = std::sqrt(x*x + y*y + z*z);
         
-        double x = range * cos(angle);
-        double y = range * sin(angle);
-        double z = altitude;
+        if (distance < config.min_range || distance > config.max_range) {
+            continue;
+        }
         
-        // Optical signature
-        double weather_impact = calculateWeatherImpact(env.weather, 1.0);
-        double brightness = (1.0 - range / config.max_range) * weather_impact;
-        double contrast = brightness * (0.7 + 0.3 * weather_impact);
+        double brightness = brightness_dist(rng);
+        double contrast = contrast_dist(rng);
         
-        brightness = addGaussianNoise(brightness, environmental_noise * 0.2);
-        contrast = addGaussianNoise(contrast, environmental_noise * 0.15);
-        brightness = std::max(0.0, std::min(1.0, brightness));
-        contrast = std::max(0.0, std::min(1.0, contrast));
+        // Environmental effects on optical detection
+        const double weather_impact = calculateWeatherImpact(env.weather, brightness);
+        brightness += addGaussianNoise(brightness, env_noise);
+        contrast += addGaussianNoise(contrast, env_noise);
         
-        // Add position noise (optical sensors are more precise)
-        x = addGaussianNoise(x, environmental_noise * 3.0);
-        y = addGaussianNoise(y, environmental_noise * 3.0);
-        z = addGaussianNoise(z, environmental_noise * 0.3);
+        brightness = std::clamp(brightness * weather_impact, 0.0, 1.0);
+        contrast = std::clamp(contrast * weather_impact, 0.0, 1.0);
         
-        std::vector<double> reading = {x, y, z, brightness, contrast};
-        data.push_back(reading);
+        optical_data.push_back({x, y, z, brightness, contrast});
     }
     
-    return data;
+    return optical_data;
 }
 
-double EnhancedSensorSimulator::calculateSignalToNoiseRatio(double signal, double noise) {
-    if (noise <= 0) return 100.0; // Perfect SNR
-    return 20 * log10(signal / noise);
+// Moving target simulation with physics
+std::vector<std::vector<double>> EnhancedSensorSimulator::simulateMovingTarget(
+    double start_x, double start_y, double start_z,
+    double velocity_x, double velocity_y, double velocity_z,
+    int time_steps, const EnvironmentalFactors& env) {
+    
+    std::vector<std::vector<double>> trajectory;
+    trajectory.reserve(time_steps);
+    
+    const auto config = getRadarConfig();
+    const double env_noise = calculateEnvironmentalNoise(env, config.noise_level);
+    
+    std::lock_guard<std::mutex> lock(rng_mutex);
+    
+    double x = start_x;
+    double y = start_y;
+    double z = start_z;
+    
+    for (int t = 0; t < time_steps; ++t) {
+        // Apply physics with environmental effects
+        const double dt = 0.1; // Time step in seconds
+        
+        // Wind effects
+        const double wind_x = env.wind_speed * std::cos(t * 0.1) * 0.01;
+        const double wind_y = env.wind_speed * std::sin(t * 0.1) * 0.01;
+        
+        // Update position with wind and gravity effects
+        x += (velocity_x + wind_x) * dt;
+        y += (velocity_y + wind_y) * dt;
+        z += (velocity_z - 9.81 * dt) * dt; // Gravity effect
+        
+        // Add noise to simulate sensor inaccuracy
+        const double noisy_x = x + addGaussianNoise(0.0, env_noise * 10.0);
+        const double noisy_y = y + addGaussianNoise(0.0, env_noise * 10.0);
+        const double noisy_z = z + addGaussianNoise(0.0, env_noise * 5.0);
+        
+        trajectory.push_back({noisy_x, noisy_y, noisy_z, static_cast<double>(t)});
+    }
+    
+    return trajectory;
 }
 
-bool EnhancedSensorSimulator::isDetectable(double snr, double threshold) {
-    return snr >= threshold;
+// Thread-safe utility methods
+double EnhancedSensorSimulator::calculateSignalToNoiseRatio(double signal, double noise) const noexcept {
+    if (noise <= 0) return signal > 0 ? 100.0 : 0.0;
+    return 20.0 * std::log10(signal / noise);
 }
 
-std::string EnhancedSensorSimulator::weatherToString(WeatherCondition weather) {
+bool EnhancedSensorSimulator::isDetectable(double snr, double threshold) const noexcept {
+    return snr >= threshold && sensor_reliability.load() > 0.5;
+}
+
+std::string EnhancedSensorSimulator::weatherToString(WeatherCondition weather) const noexcept {
     switch (weather) {
         case WeatherCondition::CLEAR: return "Clear";
         case WeatherCondition::CLOUDY: return "Cloudy";
@@ -273,13 +285,66 @@ std::string EnhancedSensorSimulator::weatherToString(WeatherCondition weather) {
     }
 }
 
-void EnhancedSensorSimulator::simulateSensorFailure(double failure_probability) {
-    std::uniform_real_distribution<double> failure_check(0.0, 1.0);
-    if (failure_check(rng) < failure_probability) {
-        std::cout << "⚠️  Sensor failure simulated!" << std::endl;
+// Thread-safe sensor failure simulation
+void EnhancedSensorSimulator::simulateSensorFailure(double failure_probability) noexcept {
+    std::lock_guard<std::mutex> lock(rng_mutex);
+    
+    std::uniform_real_distribution<double> failure_dist(0.0, 1.0);
+    if (failure_dist(rng) < failure_probability) {
+        sensor_reliability.store(std::uniform_real_distribution<double>(0.1, 0.8)(rng));
+        failure_simulation.store(true);
     }
 }
 
-double EnhancedSensorSimulator::getSensorReliability() const {
-    return 0.95; // 95% reliability
+double EnhancedSensorSimulator::getSensorReliability() const noexcept {
+    return sensor_reliability.load();
+}
+
+void EnhancedSensorSimulator::resetSensorReliability() noexcept {
+    sensor_reliability.store(1.0);
+    failure_simulation.store(false);
+}
+
+// Private helper methods
+double EnhancedSensorSimulator::calculateWeatherImpact(WeatherCondition weather, double base_signal) {
+    switch (weather) {
+        case WeatherCondition::CLEAR: return 1.0;
+        case WeatherCondition::CLOUDY: return 0.9;
+        case WeatherCondition::RAIN: return 0.7;
+        case WeatherCondition::FOG: return 0.5;
+        case WeatherCondition::STORM: return 0.3;
+        default: return 1.0;
+    }
+}
+
+double EnhancedSensorSimulator::addGaussianNoise(double value, double std_dev) {
+    std::lock_guard<std::mutex> lock(rng_mutex);
+    return value + gaussian_noise(rng) * std_dev;
+}
+
+double EnhancedSensorSimulator::calculateDopplerShift(double velocity, double frequency) {
+    const double c = 299792458.0; // Speed of light in m/s
+    return frequency * (1.0 + velocity / c);
+}
+
+double EnhancedSensorSimulator::calculateSignalAttenuation(
+    double distance, double frequency, WeatherCondition weather) {
+    
+    // Friis transmission equation with weather effects
+    const double c = 299792458.0; // Speed of light
+    const double wavelength = c / frequency;
+    
+    double weather_loss = 1.0;
+    switch (weather) {
+        case WeatherCondition::CLEAR: weather_loss = 1.0; break;
+        case WeatherCondition::CLOUDY: weather_loss = 0.95; break;
+        case WeatherCondition::RAIN: weather_loss = 0.85; break;
+        case WeatherCondition::FOG: weather_loss = 0.75; break;
+        case WeatherCondition::STORM: weather_loss = 0.6; break;
+    }
+    
+    // Free space path loss
+    const double path_loss = std::pow(4.0 * M_PI * distance / wavelength, 2);
+    
+    return weather_loss / path_loss;
 }
