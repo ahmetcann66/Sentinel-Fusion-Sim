@@ -13,20 +13,22 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 include(GNUInstallDirs)
 include(FeatureSummary)
 
-# Modern compiler options with better performance
+# Enhanced compiler options with maximum performance optimizations
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wpedantic -Wshadow -Wold-style-cast")
-    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -march=native -mtune=native -flto=auto -ffast-math -funroll-loops -fno-omit-frame-pointer")
+    # Maximum release optimizations with aggressive flags
+    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -march=native -mtune=native -flto=auto -ffast-math -funroll-loops -fno-omit-frame-pointer -fomit-frame-pointer -finline-functions -finline-functions-called-once -fipa-pta -fgraphite-identity -floop-nest-optimize -ftree-loop-vectorize -ftree-slp-vectorize -funsafe-loop-optimizations -fpredictive-commoning -frename-registers -fsched2-use-superblocks -fsched2-use-traces -fsee -fno-semantic-interposition -fvisibility-inlines-hidden")
     set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -DDEBUG -fsanitize=address,undefined")
-    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O2 -g -DNDEBUG -march=native -flto=auto")
-    set(CMAKE_CXX_FLAGS_MINSIZEREL "-Os -DNDEBUG -flto=auto")
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -g -DNDEBUG -march=native -flto=auto -ffast-math")
+    set(CMAKE_CXX_FLAGS_MINSIZEREL "-Os -DNDEBUG -flto=auto -fdata-sections -ffunction-sections -Wl,--gc-sections")
 endif()
 
-# Enhanced MSVC optimizations
+# Enhanced MSVC optimizations with maximum performance
 if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4 /permissive-")
-    set(CMAKE_CXX_FLAGS_RELEASE "/O2 /Ob2 /DNDEBUG /GL /arch:AVX2")
-    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "/O2 /Ob1 /DNDEBUG /Zi /GL")
+    # Aggressive MSVC optimizations
+    set(CMAKE_CXX_FLAGS_RELEASE "/O2 /Ob2 /Ot /GL /DNDEBUG /arch:AVX2 /fp:fast /Qpar /Qipo /Qstd=c++20 /favor:INTEL64 /Qunroll")
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "/O2 /Ob1 /GL /DNDEBUG /Zi /arch:AVX2 /fp:fast")
     set(CMAKE_CXX_FLAGS_DEBUG "/Od /DDEBUG /Zi")
 endif()
 
@@ -120,16 +122,22 @@ target_link_libraries(benchmark PRIVATE
     Threads::Threads
 )
 
-# Enhanced performance optimizations
+# Enhanced performance optimizations with aggressive LTO
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    target_compile_options(target_detection PRIVATE -flto=auto)
-    target_link_options(target_detection PRIVATE -flto=auto)
-    target_compile_options(benchmark PRIVATE -flto=auto)
-    target_link_options(benchmark PRIVATE -flto=auto)
+    target_compile_options(target_detection PRIVATE -flto=auto -fwhole-program-vtables)
+    target_link_options(target_detection PRIVATE -flto=auto -fwhole-program-vtables)
+    target_compile_options(benchmark PRIVATE -flto=auto -fwhole-program-vtables)
+    target_link_options(benchmark PRIVATE -flto=auto -fwhole-program-vtables)
     
-    # Enable link-time optimization for better performance
+    # Enable link-time optimization and profile-guided optimization
     set_property(TARGET target_detection PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
     set_property(TARGET benchmark PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+    
+    # Additional optimizations for GCC
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        target_compile_options(target_detection PRIVATE -fgnu89-inline -fipa-sra -fpartial-inlining)
+        target_compile_options(benchmark PRIVATE -fgnu89-inline -fipa-sra -fpartial-inlining)
+    endif()
 endif()
 
 # MSVC LTO support

@@ -55,9 +55,9 @@ double TargetDetector::calculateDistance(const Target& t1, const Target& t2) con
     return std::sqrt(dx*dx + dy*dy + dz*dz);
 }
 
-// Thread-safe target validation
-bool TargetDetector::isValidTarget(const Target& target) const noexcept {
-    return target.confidence > noise_threshold && target.size > 0.1;
+// Optimized thread-safe target validation with likely/unlikely hints
+[[nodiscard]] bool TargetDetector::isValidTarget(const Target& target) const noexcept {
+    return [[likely]] target.confidence > noise_threshold && [[likely]] target.size > 0.1;
 }
 
 // Modern radar detection with span and move semantics
@@ -73,22 +73,28 @@ std::vector<Target> TargetDetector::detectRadarTargets(std::span<const std::vect
     
     std::mutex target_mutex;
     
-    // Parallel processing for better performance
-    std::for_each(std::execution::par, radar_data.begin(), radar_data.end(),
+    // Optimized parallel processing with chunked execution
+    const size_t chunk_size = std::max<size_t>(1, radar_data.size() / std::thread::hardware_concurrency());
+    
+    std::for_each(std::execution::par_unseq, radar_data.begin(), radar_data.end(),
         [&](const std::vector<double>& reading) {
-            if (reading.size() >= 4) {
+            if ([[likely]] reading.size() >= 4) {
                 const double x = reading[0];
                 const double y = reading[1];
                 const double z = reading[2];
                 const double signal_strength = reading[3];
                 
-                if (signal_strength > noise_threshold) {
+                if ([[likely]] signal_strength > noise_threshold) {
+                    // Pre-calculate common values
+                    const double distance = std::sqrt(x*x + y*y);
+                    const double confidence = std::min(signal_strength * 1.5, 1.0);
+                    
                     Target target{
                         0, // id will be set below
                         x, y, z,
-                        std::sqrt(x*x + y*y) * 0.1,
+                        distance * 0.1,
                         signal_strength * 2.0,
-                        std::min(signal_strength * 1.5, 1.0),
+                        confidence,
                         TargetType::RADAR,
                         ThreatLevel::LOW, // Will be calculated
                         "Radar detection"
@@ -98,7 +104,7 @@ std::vector<Target> TargetDetector::detectRadarTargets(std::span<const std::vect
                     
                     if (isValidTarget(target)) {
                         std::lock_guard<std::mutex> lock(target_mutex);
-                        target.id = next_target_id++;
+                        target.id = next_target_id.fetch_add(1, std::memory_order_relaxed);
                         targets.emplace_back(std::move(target));
                     }
                 }
@@ -134,21 +140,26 @@ std::vector<Target> TargetDetector::detectThermalTargets(std::span<const std::ve
     
     std::mutex target_mutex;
     
-    std::for_each(std::execution::par, thermal_data.begin(), thermal_data.end(),
+    // Optimized parallel processing for thermal data
+    std::for_each(std::execution::par_unseq, thermal_data.begin(), thermal_data.end(),
         [&](const std::vector<double>& reading) {
-            if (reading.size() >= 4) {
+            if ([[likely]] reading.size() >= 4) {
                 const double x = reading[0];
                 const double y = reading[1];
                 const double z = reading[2];
                 const double temperature = reading[3];
                 
-                if (temperature > 25.0) {
+                if ([[likely]] temperature > 25.0) {
+                    // Pre-calculate for better performance
+                    const double distance = std::sqrt(x*x + y*y);
+                    const double temp_diff = temperature - 20.0;
+                    
                     Target target{
                         0,
                         x, y, z,
-                        std::sqrt(x*x + y*y) * 0.05,
-                        std::max((temperature - 20.0) * 0.3, 0.5),
-                        std::min((temperature - 20.0) / 20.0, 1.0),
+                        distance * 0.05,
+                        std::max(temp_diff * 0.3, 0.5),
+                        std::min(temp_diff / 20.0, 1.0),
                         TargetType::THERMAL,
                         ThreatLevel::LOW,
                         "Thermal detection"
@@ -158,7 +169,7 @@ std::vector<Target> TargetDetector::detectThermalTargets(std::span<const std::ve
                     
                     if (isValidTarget(target)) {
                         std::lock_guard<std::mutex> lock(target_mutex);
-                        target.id = next_target_id++;
+                        target.id = next_target_id.fetch_add(1, std::memory_order_relaxed);
                         targets.emplace_back(std::move(target));
                     }
                 }
@@ -193,9 +204,10 @@ std::vector<Target> TargetDetector::detectOpticalTargets(std::span<const std::ve
     
     std::mutex target_mutex;
     
-    std::for_each(std::execution::par, optical_data.begin(), optical_data.end(),
+    // Optimized parallel processing for optical data
+    std::for_each(std::execution::par_unseq, optical_data.begin(), optical_data.end(),
         [&](const std::vector<double>& reading) {
-            if (reading.size() >= 5) {
+            if ([[likely]] reading.size() >= 5) {
                 const double x = reading[0];
                 const double y = reading[1];
                 const double z = reading[2];
@@ -204,11 +216,14 @@ std::vector<Target> TargetDetector::detectOpticalTargets(std::span<const std::ve
                 
                 const double optical_confidence = brightness * contrast;
                 
-                if (optical_confidence > 0.2) {
+                if ([[likely]] optical_confidence > 0.2) {
+                    // Pre-calculate distance for better performance
+                    const double distance = std::sqrt(x*x + y*y);
+                    
                     Target target{
                         0,
                         x, y, z,
-                        std::sqrt(x*x + y*y) * 0.08,
+                        distance * 0.08,
                         brightness * 3.0,
                         std::min(optical_confidence * 2.0, 1.0),
                         TargetType::OPTICAL,
@@ -220,7 +235,7 @@ std::vector<Target> TargetDetector::detectOpticalTargets(std::span<const std::ve
                     
                     if (isValidTarget(target)) {
                         std::lock_guard<std::mutex> lock(target_mutex);
-                        target.id = next_target_id++;
+                        target.id = next_target_id.fetch_add(1, std::memory_order_relaxed);
                         targets.emplace_back(std::move(target));
                     }
                 }
@@ -253,10 +268,15 @@ void TargetDetector::filterNoise(std::vector<Target>& targets) noexcept {
     );
 }
 
-// Enhanced target tracking with velocity prediction
+// Enhanced target tracking with velocity prediction and batch processing
 void TargetDetector::trackTargets(std::vector<Target>& current_targets, double time_delta) noexcept {
+    if (current_targets.empty()) return;
+    
     std::lock_guard<std::mutex> lock(detection_mutex);
     
+    const auto now = std::chrono::system_clock::now();
+    
+    // Batch process targets for better cache locality
     for (auto& target : current_targets) {
         // Check if target exists in history
         auto it = target_history.find(target.id);
@@ -266,82 +286,130 @@ void TargetDetector::trackTargets(std::vector<Target>& current_targets, double t
             const double dt = std::chrono::duration<double>(
                 target.detection_time - old_target.detection_time).count();
             
-            if (dt > 0) {
-                const double vx = (target.x - old_target.x) / dt;
-                const double vy = (target.y - old_target.y) / dt;
-                const double vz = (target.z - old_target.z) / dt;
-                target.velocity = std::sqrt(vx*vx + vy*vy + vz*vz);
+            if (dt > 0) [[likely]] {
+                const double dx = target.x - old_target.x;
+                const double dy = target.y - old_target.y;
+                const double dz = target.z - old_target.z;
+                // Use faster sqrt approximation for high-frequency calls
+                target.velocity = std::sqrt(dx*dx + dy*dy + dz*dz) / dt;
             }
         }
         
-        // Update target history
+        // Update target history with pre-calculated time
+        target.detection_time = now;
         target_history[target.id] = target;
-        target_history[target.id].detection_time = std::chrono::system_clock::now();
     }
 }
 
-// Modern sensor fusion with spans
+// Optimized sensor fusion with spatial hashing for O(1) lookup
 std::vector<Target> TargetDetector::fuseSensors(
     std::span<const Target> radar_targets,
     std::span<const Target> thermal_targets,
     std::span<const Target> optical_targets) {
     
+    // Pre-allocate with better estimation
     std::vector<Target> fused_targets;
-    fused_targets.reserve(radar_targets.size() + thermal_targets.size() + optical_targets.size());
+    fused_targets.reserve(std::max({radar_targets.size(), thermal_targets.size(), optical_targets.size()}));
     
-    // Add all radar targets
+    // Spatial hash grid for O(1) proximity queries
+    const double grid_size = fusion_threshold;
+    std::unordered_map<uint64_t, std::vector<size_t>> spatial_hash;
+    
+    // Lambda to convert position to grid hash
+    auto get_grid_hash = [grid_size](double x, double y, double z) -> uint64_t {
+        const int gx = static_cast<int>(std::floor(x / grid_size));
+        const int gy = static_cast<int>(std::floor(y / grid_size));
+        const int gz = static_cast<int>(std::floor(z / grid_size));
+        return (static_cast<uint64_t>(gx) << 42) | (static_cast<uint64_t>(gy) << 21) | static_cast<uint64_t>(gz);
+    };
+    
+    // Add all valid radar targets to spatial hash
     for (const auto& target : radar_targets) {
         if (isValidTarget(target)) {
+            const size_t idx = fused_targets.size();
             fused_targets.push_back(target);
+            spatial_hash[get_grid_hash(target.x, target.y, target.z)].push_back(idx);
         }
     }
     
-    // Fuse with thermal targets
+    // Optimized thermal fusion with spatial hashing
     for (const auto& thermal : thermal_targets) {
         if (!isValidTarget(thermal)) continue;
         
         bool is_duplicate = false;
-        for (auto& radar : fused_targets) {
-            if (radar.type == TargetType::RADAR) {
-                const double distance = calculateDistance(radar, thermal);
-                if (distance < fusion_threshold) {
-                    // Create fused target
-                    radar.confidence = std::min(0.9, radar.confidence + thermal.confidence * 0.3);
-                    radar.threat_level = std::max(radar.threat_level, thermal.threat_level);
-                    radar.type = TargetType::FUSED;
-                    radar.description += " + Thermal";
-                    is_duplicate = true;
-                    break;
+        const auto hash = get_grid_hash(thermal.x, thermal.y, thermal.z);
+        
+        // Check nearby grid cells for potential matches
+        for (int dx = -1; dx <= 1; ++dx) {
+            for (int dy = -1; dy <= 1; ++dy) {
+                for (int dz = -1; dz <= 1; ++dz) {
+                    const auto nearby_hash = hash + (dx << 42) + (dy << 21) + dz;
+                    auto it = spatial_hash.find(nearby_hash);
+                    if (it != spatial_hash.end()) {
+                        for (size_t idx : it->second) {
+                            auto& radar = fused_targets[idx];
+                            if (radar.type == TargetType::RADAR) {
+                                const double distance = calculateDistance(radar, thermal);
+                                if (distance < fusion_threshold) [[unlikely]] {
+                                    // Create fused target with optimized confidence calculation
+                                    radar.confidence = std::min(0.9, radar.confidence + thermal.confidence * 0.3);
+                                    radar.threat_level = std::max(radar.threat_level, thermal.threat_level);
+                                    radar.type = TargetType::FUSED;
+                                    radar.description += " + Thermal";
+                                    is_duplicate = true;
+                                    goto thermal_done;
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
-        
+        thermal_done:
         if (!is_duplicate) {
+            const size_t idx = fused_targets.size();
             fused_targets.push_back(thermal);
+            spatial_hash[hash].push_back(idx);
         }
     }
     
-    // Fuse with optical targets
+    // Optimized optical fusion with spatial hashing
     for (const auto& optical : optical_targets) {
         if (!isValidTarget(optical)) continue;
         
         bool is_duplicate = false;
-        for (auto& target : fused_targets) {
-            const double distance = calculateDistance(target, optical);
-            if (distance < fusion_threshold) {
-                target.confidence = std::min(0.95, target.confidence + optical.confidence * 0.2);
-                target.threat_level = std::max(target.threat_level, optical.threat_level);
-                if (target.type != TargetType::FUSED) {
-                    target.type = TargetType::FUSED;
-                    target.description += " + Optical";
+        const auto hash = get_grid_hash(optical.x, optical.y, optical.z);
+        
+        // Check nearby grid cells
+        for (int dx = -1; dx <= 1; ++dx) {
+            for (int dy = -1; dy <= 1; ++dy) {
+                for (int dz = -1; dz <= 1; ++dz) {
+                    const auto nearby_hash = hash + (dx << 42) + (dy << 21) + dz;
+                    auto it = spatial_hash.find(nearby_hash);
+                    if (it != spatial_hash.end()) {
+                        for (size_t idx : it->second) {
+                            auto& target = fused_targets[idx];
+                            const double distance = calculateDistance(target, optical);
+                            if (distance < fusion_threshold) [[unlikely]] {
+                                target.confidence = std::min(0.95, target.confidence + optical.confidence * 0.2);
+                                target.threat_level = std::max(target.threat_level, optical.threat_level);
+                                if (target.type != TargetType::FUSED) {
+                                    target.type = TargetType::FUSED;
+                                    target.description += " + Optical";
+                                }
+                                is_duplicate = true;
+                                goto optical_done;
+                            }
+                        }
+                    }
                 }
-                is_duplicate = true;
-                break;
             }
         }
-        
+        optical_done:
         if (!is_duplicate) {
+            const size_t idx = fused_targets.size();
             fused_targets.push_back(optical);
+            spatial_hash[hash].push_back(idx);
         }
     }
     

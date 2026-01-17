@@ -38,7 +38,8 @@ enum class SensorStatus : uint8_t {
     ERROR = 3
 };
 
-struct Target {
+// Memory-aligned Target structure for better cache performance
+struct alignas(32) Target {
     int id{};
     double x{}, y{}, z{};
     double velocity{};
@@ -64,6 +65,10 @@ struct Target {
           confidence(confidence), type(type), threat_level(threat_level),
           detection_time(std::chrono::system_clock::now()), 
           description(std::move(description)) {}
+          
+    // Memory pool allocation support
+    void* operator new(std::size_t size);
+    void operator delete(void* ptr) noexcept;
 };
 
 struct DetectionMetrics {
@@ -76,20 +81,26 @@ struct DetectionMetrics {
 
 class TargetDetector {
 private:
-    std::vector<Target> detected_targets;
+    // Cache-friendly data structures with alignment and memory pool
+    alignas(64) std::vector<Target> detected_targets;
     std::unordered_map<int, Target> target_history;
-    int next_target_id{};
-    double fusion_threshold{};
-    double noise_threshold{};
+    std::atomic<int> next_target_id{1};
+    alignas(64) double fusion_threshold{5.0};
+    alignas(64) double noise_threshold{0.3};
     mutable std::mutex detection_mutex;
     SensorStatus radar_status{SensorStatus::ACTIVE};
     SensorStatus thermal_status{SensorStatus::ACTIVE};
     SensorStatus optical_status{SensorStatus::ACTIVE};
     
-    // Private helper methods
-    double calculateDistance(const Target& t1, const Target& t2) const noexcept;
-    bool isValidTarget(const Target& target) const noexcept;
-    ThreatLevel calculateThreatLevel(const Target& target) const noexcept;
+    // Memory pool for Target objects
+    static constexpr size_t TARGET_POOL_SIZE = 1024;
+    alignas(64) static thread_local std::array<Target, TARGET_POOL_SIZE> target_pool;
+    static thread_local size_t pool_index;
+    
+    // Private helper methods with optimization hints
+    [[nodiscard]] double calculateDistance(const Target& t1, const Target& t2) const noexcept;
+    [[nodiscard]] bool isValidTarget(const Target& target) const noexcept;
+    [[nodiscard]] ThreatLevel calculateThreatLevel(const Target& target) const noexcept;
     std::string typeToString(TargetType type) const noexcept;
     std::string threatToString(ThreatLevel level) const noexcept;
     std::string statusToString(SensorStatus status) const noexcept;
