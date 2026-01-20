@@ -10,6 +10,7 @@
 TargetDetector::TargetDetector(double noise_thresh) 
     : next_target_id(1), noise_threshold(noise_thresh) {
     detected_targets.reserve(500);
+    sensor = std::make_unique<SimpleSensor>();
 }
 
 std::string TargetDetector::threatToString(ThreatLevel level) const noexcept {
@@ -142,4 +143,51 @@ void TargetDetector::setNoiseThreshold(double threshold) noexcept {
 
 double TargetDetector::getNoiseThreshold() const noexcept {
     return noise_threshold;
+}
+
+void TargetDetector::setSensor(std::unique_ptr<SimpleSensor> new_sensor) noexcept {
+    sensor = std::move(new_sensor);
+}
+
+SimpleSensor* TargetDetector::getSensor() const noexcept {
+    return sensor.get();
+}
+
+std::vector<Target> TargetDetector::detectWithSensor(double center_x, double center_y) {
+    std::vector<Target> targets;
+    
+    if (!sensor) {
+        return targets;
+    }
+    
+    auto detections = sensor->scanForTargets(center_x, center_y);
+    
+    for (size_t i = 0; i < detections.size(); ++i) {
+        double distance = detections[i];
+        double angle = (i * 72.0) * M_PI / 180.0; // 72 degrees between 5 points
+        
+        double x = center_x + distance * cos(angle);
+        double y = center_y + distance * sin(angle);
+        double z = 0.0; // Simple 2D detection
+        
+        double confidence = std::max(0.5, 1.0 - distance / sensor->getRange());
+        double velocity = distance * 0.05; // Simple velocity calculation
+        
+        Target target(
+            next_target_id++,
+            x, y, z,
+            velocity,
+            confidence,
+            calculateThreatLevel(Target{0, x, y, z, velocity, confidence, ThreatLevel::LOW}),
+            "Sensor detected target"
+        );
+        
+        if (isValidTarget(target)) {
+            targets.push_back(target);
+            addTarget(target);
+        }
+    }
+    
+    prioritizeTargets(targets);
+    return targets;
 }

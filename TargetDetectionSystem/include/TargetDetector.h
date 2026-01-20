@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <concepts>
 #include <ranges>
+#include <random>
 
 enum class ThreatLevel : uint8_t {
     LOW = 0,
@@ -63,11 +64,57 @@ struct Target {
     bool operator==(const Target& other) const noexcept = default;
 };
 
+// Simple sensor class
+class SimpleSensor {
+private:
+    std::mt19937 rng;
+    std::uniform_real_distribution<double> noise_dist;
+    double detection_range;
+    double accuracy;
+    
+public:
+    explicit SimpleSensor(double range = 100.0, double acc = 0.95) 
+        : rng(std::chrono::steady_clock::now().time_since_epoch().count())
+        , noise_dist(-0.1, 0.1)
+        , detection_range(range), accuracy(acc) {}
+    
+    [[nodiscard]] bool canDetect(double distance) const noexcept {
+        return distance <= detection_range;
+    }
+    
+    [[nodiscard]] double getReading(double true_value) noexcept {
+        if (static_cast<double>(rng()) / rng.max() > accuracy) {
+            return true_value + noise_dist(rng);
+        }
+        return true_value;
+    }
+    
+    [[nodiscard]] std::vector<double> scanForTargets(double center_x, double center_y) noexcept {
+        std::vector<double> detections;
+        
+        for (int i = 0; i < 5; ++i) {
+            double distance = sqrt(pow(center_x + i*10, 2) + pow(center_y + i*10, 2));
+            if (canDetect(distance)) {
+                double detection = getReading(distance);
+                if (detection > 0.1) {
+                    detections.push_back(detection);
+                }
+            }
+        }
+        
+        return detections;
+    }
+    
+    void setRange(double new_range) noexcept { detection_range = new_range; }
+    [[nodiscard]] double getRange() const noexcept { return detection_range; }
+};
+
 class TargetDetector {
 private:
     std::vector<Target> detected_targets;
     int next_target_id{1};
     double noise_threshold{0.3};
+    std::unique_ptr<SimpleSensor> sensor;
     
     [[nodiscard]] bool isValidTarget(const Target& target) const noexcept;
     [[nodiscard]] ThreatLevel calculateThreatLevel(const Target& target) const noexcept;
@@ -99,6 +146,11 @@ public:
     // Configuration
     void setNoiseThreshold(double threshold) noexcept;
     [[nodiscard]] double getNoiseThreshold() const noexcept;
+    
+    // Sensor methods
+    void setSensor(std::unique_ptr<SimpleSensor> new_sensor) noexcept;
+    [[nodiscard]] SimpleSensor* getSensor() const noexcept;
+    [[nodiscard]] std::vector<Target> detectWithSensor(double center_x, double center_y);
 };
 
 #endif
