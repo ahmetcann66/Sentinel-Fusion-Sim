@@ -1,0 +1,3 @@
+"C:\Program Files\CMake\bin\cmake.exe" -E rm -f CMakeFiles\radar_detection.dir/objects.a
+C:\msys64\ucrt64\bin\ar.exe qc CMakeFiles\radar_detection.dir/objects.a @CMakeFiles\radar_detection.dir\objects1.rsp
+C:\msys64\ucrt64\bin\g++.exe  -Wall -Wextra -g -Wl,--whole-archive CMakeFiles\radar_detection.dir/objects.a -Wl,--no-whole-archive -o radar_detection.exe -Wl,--out-implib,libradar_detection.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles\radar_detection.dir\linkLibs.rsp
