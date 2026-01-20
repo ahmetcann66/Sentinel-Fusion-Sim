@@ -1,309 +1,144 @@
-# Sentinel Fusion Sim - Advanced Multi-Sensor Target Detection System
+# Radar Target Detection System
 
-🚀 **C++20 ile geliştirilen modern, yüksek performanslı çoklu sensör tabanlı hedef tespit ve takip sistemi**
+Savunma sanayii için geliştirilen basit ve etkili radar tabanlı hedef tespit sistemi.
 
-## 📋 Genel Bakış
+## 🎯 Proje Amacı
 
-Bu proje, savunma sanayi için geliştirilen gelişmiş bir hedef tespit sistemidir. Radar, Termal ve Optik sensörlerden gelen verileri birleştirerek yüksek doğrulukta hedef tespiti yapar. Modern C++20 özelliklerini kullanarak paralel processing, thread-safe operations ve optimized memory management sunar.
+Bu proje, çoklu sensör karmaşıklığı olmadan sadece radar verileri kullanarak:
+- Hedef tespiti ve takibi
+- Otomatik tehdit seviyesi belirleme  
+- Gürültü filtreleme ve doğrulama
+- Gerçek zamanlı hedef önceliklendirme
 
-## ✨ Yenilikçi Özellikler
+İşlemlerini gerçekleştiren temiz ve anlaşılır bir sistem sunar.
 
-### 🎯 Çoklu Sensör Füzyonu
-- **Radar Tespiti**: Sinyal gücü analizi, mesafe hesaplama, Doppler etkisi
-- **Termal Tespit**: Sıcaklık eşiği analizi, ısı kaynakları, çevresel faktörler
-- **Optik Tespit**: Parlaklık/kontrast analizi, hareket tespiti, görüntü işleme
-- **Akıllı Füzyon**: Farklı sensör verilerini birleştirerek doğruluğu artırır
+## 📊 Sistem Şeması
 
-### ⚡ Performans Optimizasyonları
-- **Paralel Processing**: Modern C++20 execution policies ile multi-threading
-- **Memory Efficiency**: Move semantics, span kullanımı, smart pointers
-- **LTO Support**: Link-time optimization ile en üst düzey performans
-- **Precompiled Headers**: Daha hızlı derleme süreleri
+```
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│   Radar Verisi   │───▶│  Hedef Tespit    │───▶│   Gürültü       │
+│   (x,y,z,sig)   │    │  Algoritması     │    │   Filtreleme    │
+└─────────────────┘    └──────────────────┘    └─────────────────┘
+                                                        │
+                                                        ▼
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│   Sonuçlar      │◀───│   Tehdit         │◀───│   Doğrulanmış   │
+│   (Ekrana)      │    │   Analizi        │    │   Hedefler      │
+└─────────────────┘    └──────────────────┘    └─────────────────┘
+```
 
-### 🛡️ Güvenlik ve Güvenilirlik
-- **Thread-Safe Operations**: Mutex korumalı kritik bölgeler
-- **Sensor Status Management**: Sensör durum takibi ve hata yönetimi
-- **Environmental Adaptation**: Hava koşullarına göre algılama optimizasyonu
-- **Failure Simulation**: Sensör arıza senaryoları
+## 🚀 Kurulum Yönergeleri
 
-### 📊 Gelişmiş Analitik
-- **Threat Level Assessment**: Otomatik tehdit seviyesi belirleme
-- **Target Prediction**: Hedef hareket tahmini
-- **Performance Metrics**: Detaylı performans istatistikleri
-- **Real-time Monitoring**: Canlı tespit metrikleri
+### 1. Gereksinimler
 
-## 🔧 Teknolojik Altyapı
+**Sistem Gereksinimleri:**
+- Linux, Windows veya macOS
+- C++17 uyumlu derleyici (GCC 7+, Clang 5+, MSVC 2019+)
+- CMake 3.20 veya üzeri
 
-### Modern C++20 Özellikleri
-- **Concepts**: Type constraints ve template meta-programming
-- **Ranges**: Modern veri işleme pipeline'ları
-- **Span**: Safe array views
-- **Coroutines**: Asenkron operasyonlar (gelecek sürüm)
-- **Modules**: Faster compilation (CMake 3.28+)
+**Derleyici Kurulumu:**
 
-### Build Sistemi
-- **CMake 3.20+**: Modern CMake configuration
-- **Cross-Platform**: Linux, Windows, macOS desteği
-- **Package Management**: VCPKG/Conan entegrasyonu
-- **Testing**: Catch2 ile unit testing
-- **Benchmarking**: Google Benchmark ile performans analizi
-
-## 🏗️ Kurulum ve Derleme
-
-### Gerekli Bağımlılıklar
-
-#### Ubuntu/Debian
+**Ubuntu/Debian:**
 ```bash
 sudo apt update
-sudo apt install build-essential cmake git
-sudo apt install libopencv-dev libopencv-contrib-dev
-# CMake 3.20+ için
-wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | sudo tee /etc/apt/trusted.gpg.d/kitware.gpg >/dev/null
-sudo apt-add-repository 'deb https://apt.kitware.com/ubuntu/ focal main'
-sudo apt update && sudo apt install cmake
+sudo apt install build-essential cmake
 ```
 
-#### CentOS/RHEL/Fedora
+**Windows (Visual Studio):**
 ```bash
-# CentOS/RHEL
-sudo yum groupinstall "Development Tools"
-sudo yum install cmake opencv-devel git
-
-# Fedora
-sudo dnf install cmake opencv-devel gcc-c++ git
+# Visual Studio 2019+ kurulumu yeterli
+# Veya Build Tools for Visual Studio
 ```
 
-#### macOS
+**macOS (Homebrew):**
 ```bash
-brew install cmake opencv git
+brew install cmake
 ```
 
-#### Windows (MSVC2)
-```powershell
-# Vcpkg ile
-vcpkg install opencv4[contrib]:x64-windows
-vcpkg integrate install
-```
+### 2. Proje Kurulumu
 
-### Derleme Seçenekleri
-
-#### Standart Derleme
+**Adım 1 - Projeyi Kopyala:**
 ```bash
-git clone https://github.com/username/Sentinel-Fusion-Sim.git
+cd ~/Projects
+git clone <proje-linki>
 cd Sentinel-Fusion-Sim/TargetDetectionSystem
+```
+
+**Adım 2 - Derleme:**
+```bash
 mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
-make -j$(nproc)  # Linux/macOS
-# veya
-cmake --build . --config Release  # Windows
-```
-
-#### Geliştirici Derlemesi
-```bash
-cmake .. -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON -DENABLE_PROFILING=ON
-make -j$(nproc)
-```
-
-#### Test ve Benchmark
-```bash
-cmake .. -DBUILD_TESTING=ON -DBUILD_BENCHMARKS=ON
-make -j$(nproc)
-ctest --output-on-failure  # Run tests
-./benchmark  # Run benchmarks
-```
-
-## 🚀 Kullanım
-
-### Basit Kullanım
-```bash
-./target_detection
-```
-
-### Gelişmiş Kullanım
-```cpp
-#include "TargetDetector.h"
-#include "SensorSimulator.h"
-
-int main() {
-    // Modern C++20 initialization
-    TargetDetector detector(5.0, 0.3);
-    EnhancedSensorSimulator simulator(42); // Seed
-    
-    // Generate realistic environmental conditions
-    auto env = simulator.generateEnvironmentalConditions();
-    
-    // Generate sensor data
-    auto radar_data = simulator.generateRealisticRadarData(15, env);
-    auto thermal_data = simulator.generateRealisticThermalData(12, env);
-    auto optical_data = simulator.generateRealisticOpticalData(10, env);
-    
-    // Detect targets with modern span API
-    auto radar_targets = detector.detectRadarTargetsOptimized(radar_data);
-    auto thermal_targets = detector.detectThermalTargetsOptimized(thermal_data);
-    auto optical_targets = detector.detectOpticalTargetsOptimized(optical_data);
-    
-    // Fuse sensor data
-    auto fused_targets = detector.fuseSensors(radar_targets, thermal_targets, optical_targets);
-    
-    // Get performance metrics
-    auto metrics = detector.getLastDetectionMetrics();
-    if (metrics) {
-        std::cout << "Processing time: " << metrics->processing_time_ms << "ms\n";
-        std::cout << "Targets detected: " << metrics->targets_detected << "\n";
-    }
-    
-    // Print results
-    detector.printTargets();
-    
-    return 0;
-}
-```
-
-## 📊 Performans Metrikleri
-
-### Test Sonuçları (Benchmark) - **YENİ OPTİMİZASYONLAR**
-- **İşlem Süresi**: <35ms (100 hedef için) - **%30 iyileştirme**
-- **Doğruluk Oranı**: >95% - **%3 iyileştirme** 
-- **Memory Usage**: <75MB (1000 hedef) - **%25 iyileştirme**
-- **Thread Safety**: Multi-core scalability >92% - **%8 iyileştirme**
-- **Sensor Fusion Latency**: <3ms - **%40 iyileştirme**
-
-### 🚀 Performans İyileştirmeleri (v2.0)
-- ✅ **Spatial Hashing**: O(n²) → O(1) sensör füzyonu
-- ✅ **Cache-friendly Memory**: alignas(32/64) ile optimizasyon
-- ✅ **Parallel Processing**: par_unseq ile daha fazla paralellik
-- ✅ **Memory Pool**: Thread-local allocation ile hız artışı
-- ✅ **Branch Prediction**: likely/unlikely ile CPU optimizasyonu
-- ✅ **Atomic Operations**: Lock-free counter kullanımı
-
-### Platform Performansı
-| Platform | Hedef/Saniye | Memory(MB) | CPU Usage |
-|----------|---------------|-------------|-----------|
-| Intel i7-12700K | 2000+ | 85 | 65% |
-| AMD Ryzen 9 5900X | 1800+ | 92 | 70% |
-| Apple M2 Pro | 2200+ | 78 | 55% |
-
-## 🧪 Test ve Doğrulama
-
-### Unit Testing
-```bash
-# Tüm testleri çalıştır
-ctest
-
-# Spesifik test
-ctest -R TargetDetectorTest
-
-# Verbose output
-ctest --output-on-failure --verbose
-```
-
-### Performance Benchmarking
-```bash
-./benchmark --benchmark_filter=RadarDetection
-./benchmark --benchmark_format=json > results.json
-```
-
-### Coverage Analysis
-```bash
-cmake .. -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="--coverage"
+cmake ..
 make
-lcov --capture --directory . --output-file coverage.info
-genhtml coverage.info --output-directory coverage_report
+```
+
+**Adım 3 - Çalıştırma:**
+```bash
+./radar_detection
+```
+
+### 3. Hızlı Test
+
+Doğrudan derleme (CMake olmadan):
+```bash
+# Proje dizininde
+g++ -std=c++17 -I./include src/TargetDetector.cpp src/main.cpp -o radar_detection
+./radar_detection
 ```
 
 ## 🏗️ Proje Yapısı
 
 ```
 TargetDetectionSystem/
-├── include/                    # Header dosyaları
-│   ├── TargetDetector.h       # Ana tespit sınıfı
-│   └── SensorSimulator.h      # Sensör simülasyonu
-├── src/                       # Kaynak kodları
-│   ├── TargetDetector.cpp     # Tespit implementasyonu
-│   ├── SensorSimulator.cpp    # Sensör simülasyonu
-│   ├── main.cpp              # Demo uygulaması
-│   └── benchmark.cpp         # Performans testleri
-├── tests/                     # Unit testleri
-│   ├── test_target_detector.cpp
-│   └── test_sensor_simulator.cpp
-├── docs/                      # Dokümantasyon
-├── scripts/                   # Yardımcı scriptler
-├── CMakeLists.txt            # Build configuration
-└── README.md                 # Bu dosya
+├── 📁 include/
+│   └── 📄 TargetDetector.h     # Ana sınıf tanımları
+├── 📁 src/
+│   ├── 📄 TargetDetector.cpp   # Tespit algoritmaları
+│   └── 📄 main.cpp             # Demo uygulaması
+├── 📄 CMakeLists.txt          # Derleme ayarları
+└── 📄 README.md               # Bu doküman
 ```
 
-## 🔧 Konfigürasyon
+## 📈 Çalışma Prensibi
 
-### CMake Seçenekleri
-- `-DCMAKE_BUILD_TYPE=Release|Debug|RelWithDebInfo`
-- `-DBUILD_TESTING=ON` - Testleri derle
-- `-DBUILD_BENCHMARKS=ON` - Benchmarkleri derle  
-- `-DENABLE_PROFILING=ON` - Profiling desteği
-- `-DCMAKE_CXX_COMPILER=clang++` - Derleyici seçimi
+1. **Veri Girişi**: Radar sensöründen (x,y,z,signal_strength) verileri
+2. **Tespit**: Sinyal gücü > eşik olan noktalar hedef olarak işaretlenir
+3. **Doğrulama**: Hız ve konum bilgilerini kontrol et
+4. **Tehdit Analizi**: Hedef hızına ve güvenilirliğine göre seviye belirle
+5. **Sıralama**: Tehdit seviyesine göre hedefleri önceliklendir
+6. **Çıktı**: Tüm hedefleri tablo formatında göster
 
-### Runtime Konfigürasyon
+## 🎮 Kullanım Örneği
+
+**Program çıktısı:**
+```
+=== Radar Target Detection System ===
+
+Generated 15 radar data points
+
+Detection complete!
+Targets detected: 12
+Total targets in system: 12
+
+=== Detected Targets ===
+ ID |        X |        Y |        Z | Velocity | Confidence |  Threat | Description
+----------------------------------------------------------------------
+   1 |    45.32 |   -23.45 |    12.89 |     5.23 |       0.89 |    High | Radar detected target
+   2 |    12.67 |    34.91 |   -45.23 |     2.15 |       0.67 |  Medium | Radar detected target
+   3 |   -67.89 |    23.45 |     8.91 |     1.23 |       0.45 |     Low | Radar detected target
+```
+
+## 🔧 Ayarlar
+
+**Varsayılan Parametreler:**
+- Gürültü Eşiği: 0.3 (30% sinyal gücü)
+- Maksimum Hedef: 500 (pre-allocation)
+
+**Özelleştirme:**
 ```cpp
-// Sensör ayarları
-detector.setFusionThreshold(3.0);
-detector.setNoiseThreshold(0.2);
-
-// Sensör durumu yönetimi
-detector.setSensorStatus(TargetType::RADAR, SensorStatus::ACTIVE);
-detector.setSensorStatus(TargetType::THERMAL, SensorStatus::MAINTENANCE);
+TargetDetector detector(0.25);  // Düşük gürültü eşiği
+detector.setNoiseThreshold(0.4); // Çalışma zamanı ayarı
 ```
-
-## 🚨 Güvenlik ve Lisans
-
-Bu proje savunma sanayi araştırma amaçlıdır. Kullanımı ilgili yasal düzenlemelere tabidir.
-
-- ❌ Askeri amaçlı kullanım için özel lisans gerekir
-- ✅ Akademik araştırma ve eğitim amaçlı kullanım serbesttir
-- 🔒 Kaynak kodun tamamı veya bir kısmının ticari kullanımı yasaktır
-
-## 🤝 Katkıda Bulunma
-
-1. Fork yap
-2. Feature branch oluştur (`git checkout -b feature/modern-cpp20-features`)
-3. Değişiklikleri commit et (`git commit -m 'Add C++20 concepts support'`)
-4. Push yap (`git push origin feature/modern-cpp20-features`)
-5. Pull Request aç
-
-### Katkı Standartları
-- ✅ C++20 modern practices
-- ✅ Thread-safe kod
-- ✅ Unit test coverage >80%
-- ✅ Documentation update
-- ✅ Performance benchmark
-
-## 📞 İletişim
-
-- **Proje Yöneticisi**: [İsim Soyisim]
-- **Teknik Lead**: [İsim Soyisim]
-- **Email**: contact@sentinel-fusion.tech
-- **GitHub Issues**: [Proje Linki]
-
-## 🗺️ Yol Haritası
-
-### v2.1 (Çeyrek 2 2026)
-- [ ] GPU acceleration with CUDA/OpenCL
-- [ ] Real-time sensor integration
-- [ ] Advanced ML-based target classification
-- [ ] Web-based monitoring dashboard
-
-### v2.2 (Çeyrek 3 2026)
-- [ ] Distributed computing support
-- [ ] AI-powered threat prediction
-- [ ] Mobile sensor integration
-- [ ] Cloud deployment options
-
-### v3.0 (Çeyrek 4 2026)
-- [ ] Quantum computing algorithms
-- [ ] 5G/6G sensor connectivity
-- [ ] Autonomous response systems
-- [ ] Full stack monitoring solution
 
 ---
 
-⚡ **Modern savunma teknolojileri için geliştirilmiştir | C++20 Powered | Thread-Safe | High Performance**
-
-**Made with ❤️ for Defense Technology Solutions**
+⚡ **Modern savunma teknolojileri için basit ve etkili çözüm**
