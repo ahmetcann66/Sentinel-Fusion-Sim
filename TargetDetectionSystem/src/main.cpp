@@ -1,9 +1,10 @@
-#include "TargetDetector.h"
+#include "../include/TargetDetector.h"
 #include <iostream>
 #include <vector>
 #include <random>
 #include <ranges>
-#include <format>
+#include <sstream>
+#include <iomanip>
 
 std::vector<std::vector<double>> generateRadarData(int num_targets) {
     std::vector<std::vector<double>> radar_data;
@@ -27,20 +28,20 @@ std::vector<std::vector<double>> generateRadarData(int num_targets) {
 }
 
 int main() {
-    std::cout << std::format("=== Radar Target Detection System ===\n\n");
+    std::cout << "=== Radar Target Detection System ===\n\n";
     
     TargetDetector detector(0.3);
     
     // Generate sample radar data
     auto radar_data = generateRadarData(15);
-    std::cout << std::format("Generated {} radar data points\n\n", radar_data.size());
+    std::cout << "Generated " << radar_data.size() << " radar data points\n\n";
     
     // Detect targets
     auto detected = detector.detectRadarTargets(radar_data);
     
-    std::cout << std::format("Detection complete!\n");
-    std::cout << std::format("Targets detected: {}\n", detected.size());
-    std::cout << std::format("Total targets in system: {}\n", detector.getTargetCount());
+    std::cout << "Detection complete!\n";
+    std::cout << "Targets detected: " << detected.size() << "\n";
+    std::cout << "Total targets in system: " << detector.getTargetCount() << "\n";
     
     // Display results using ranges
     auto high_threat_targets = detected 
@@ -50,8 +51,7 @@ int main() {
           });
     
     if (!std::ranges::empty(high_threat_targets)) {
-        std::cout << std::format("\nHigh priority targets: {}\n", 
-                                std::ranges::distance(high_threat_targets));
+        std::cout << "\nHigh priority targets: " << std::ranges::distance(high_threat_targets) << "\n";
     }
     
     // Display results
