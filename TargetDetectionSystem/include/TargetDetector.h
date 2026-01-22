@@ -49,8 +49,8 @@ struct Target {
     
     Target() = default;
     
-    constexpr Target(int id, double x, double y, double z, double velocity, double confidence, 
-                     ThreatLevel threat_level, std::string description = "")
+Target(int id, double x, double y, double z, double velocity, double confidence, 
+           ThreatLevel threat_level, std::string description = "")
         : id(id), x(x), y(y), z(z), velocity(velocity), confidence(confidence),
           threat_level(threat_level), detection_time(std::chrono::system_clock::now()), 
           description(std::move(description)) {}
