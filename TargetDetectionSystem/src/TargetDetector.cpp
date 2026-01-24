@@ -42,7 +42,7 @@ ThreatLevel TargetDetector::calculateThreatLevel(const Target& target) const noe
 
 std::vector<Target> TargetDetector::detectRadarTargets(const std::vector<std::vector<double>>& radar_data) {
     std::vector<Target> targets;
-    targets.reserve(radar_data.size());
+    targets.reserve(std::min(radar_data.size(), static_cast<size_t>(500)));  // Prevent excessive memory usage
     
     // C++20 ranges for processing radar data
     auto processed_targets = radar_data 
@@ -56,7 +56,7 @@ std::vector<Target> TargetDetector::detectRadarTargets(const std::vector<std::ve
             double signal_strength = data_point[3];
             
             double confidence = std::min(1.0, signal_strength / 100.0);
-            double velocity = std::sqrt(x*x + y*y + z*z) * 0.1;
+            double velocity = std::hypot(x, y, z) * 0.1;
             
             return Target(
                 next_target_id++,
@@ -82,13 +82,11 @@ std::vector<Target> TargetDetector::detectRadarTargets(const std::vector<std::ve
 }
 
 void TargetDetector::filterNoise(std::vector<Target>& targets) noexcept {
-    // C++20 ranges version
-    auto valid_range = targets 
-        | std::views::filter([this](const Target& t) { return isValidTarget(t); });
-    
-    std::vector<Target> filtered;
-    std::ranges::copy(valid_range, std::back_inserter(filtered));
-    targets = std::move(filtered);
+    // C++20 ranges version with in-place erase-remove idiom
+    auto new_end = std::ranges::remove_if(targets, [this](const Target& t) { 
+        return !isValidTarget(t); 
+    });
+    targets.erase(new_end.begin(), new_end.end());
 }
 
 void TargetDetector::prioritizeTargets(std::vector<Target>& targets) noexcept {

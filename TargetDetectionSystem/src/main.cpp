@@ -11,11 +11,11 @@ std::vector<std::vector<double>> generateRadarData(int num_targets) {
     std::vector<std::vector<double>> radar_data;
     radar_data.reserve(num_targets);
     
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_real_distribution<double> pos_dist(-100.0, 100.0);
-    std::uniform_real_distribution<double> signal_dist(10.0, 95.0);
+    static thread_local std::mt19937 gen(std::random_device{}());
+    static thread_local std::uniform_real_distribution<double> pos_dist(-100.0, 100.0);
+    static thread_local std::uniform_real_distribution<double> signal_dist(10.0, 95.0);
     
+    radar_data.reserve(num_targets);
     for (int i = 0; i < num_targets; ++i) {
         radar_data.emplace_back(std::vector<double>{
             pos_dist(gen),  // x

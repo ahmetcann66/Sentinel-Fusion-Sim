@@ -1,6 +1,6 @@
-# Radar Target Detection System
+# 🎯 Advanced Radar Target Detection System
 
-Savunma sanayii için geliştirilen basit ve etkili radar tabanlı hedef tespit sistemi.
+⚡ **C++20** ile geliştirilen yüksek performanslı, modern radar hedef tespit ve sınıflandırma sistemi.
 
 ## 🎯 Proje Amacı
 
@@ -33,8 +33,9 @@ Bu proje, çoklu sensör karmaşıklığı olmadan sadece radar verileri kullana
 
 **Sistem Gereksinimleri:**
 - Linux, Windows veya macOS
-- C++17 uyumlu derleyici (GCC 7+, Clang 5+, MSVC 2019+)
+- **C++20** uyumlu derleyici (GCC 10+, Clang 12+, MSVC 2019+)
 - CMake 3.20 veya üzeri
+- Modern CPU (SIMD desteği önerilir)
 
 **Derleyici Kurulumu:**
 
@@ -81,7 +82,7 @@ make
 Doğrudan derleme (CMake olmadan):
 ```bash
 # Proje dizininde
-g++ -std=c++17 -I./include src/TargetDetector.cpp src/main.cpp -o radar_detection
+g++ -std=c++20 -O3 -I./include src/TargetDetector.cpp src/main.cpp -o radar_detection
 ./radar_detection
 ```
 

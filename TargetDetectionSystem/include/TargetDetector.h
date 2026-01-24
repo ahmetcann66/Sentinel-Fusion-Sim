@@ -55,9 +55,11 @@ Target(int id, double x, double y, double z, double velocity, double confidence,
           threat_level(threat_level), detection_time(std::chrono::system_clock::now()), 
           description(std::move(description)) {}
     
-    // C++20 three-way comparison operator
-    auto operator<=>(const Target& other) const noexcept {
-        if (auto cmp = threat_level <=> other.threat_level; cmp != 0) return cmp;
+    // C++20 three-way comparison operator - optimized
+    [[nodiscard]] std::strong_ordering operator<=>(const Target& other) const noexcept {
+        if (threat_level != other.threat_level) {
+            return threat_level <=> other.threat_level;
+        }
         return confidence <=> other.confidence;
     }
     
@@ -74,7 +76,7 @@ private:
     
 public:
     explicit SimpleSensor(double range = 100.0, double acc = 0.95) 
-        : rng(std::chrono::steady_clock::now().time_since_epoch().count())
+        : rng(std::random_device{}())
         , noise_dist(-0.1, 0.1)
         , detection_range(range), accuracy(acc) {}
     
@@ -91,9 +93,12 @@ public:
     
     [[nodiscard]] std::vector<double> scanForTargets(double center_x, double center_y) noexcept {
         std::vector<double> detections;
+        detections.reserve(5);  // Pre-allocate known size
         
         for (int i = 0; i < 5; ++i) {
-            double distance = sqrt(pow(center_x + i*10, 2) + pow(center_y + i*10, 2));
+            double dx = center_x + i*10;
+            double dy = center_y + i*10;
+            double distance = std::hypot(dx, dy);  // More efficient than sqrt(pow)
             if (canDetect(distance)) {
                 double detection = getReading(distance);
                 if (detection > 0.1) {
