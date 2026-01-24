@@ -1,191 +1,80 @@
+#define _USE_MATH_DEFINES
 #include "TargetDetector.h"
-#include <algorithm>
 #include <iostream>
-#include <iomanip>
-#include <chrono>
-#include <random>
-#include <ranges>
-#include <format>
+#include <cmath>
+#include <numbers>
 
-TargetDetector::TargetDetector(double noise_thresh) 
-    : next_target_id(1), noise_threshold(noise_thresh) {
-    detected_targets.reserve(500);
-    sensor = std::make_unique<SimpleSensor>();
-}
+TargetDetector::TargetDetector(double threshold) 
+    : confidence_threshold_(threshold) {}
 
-std::string TargetDetector::threatToString(ThreatLevel level) const noexcept {
-    switch (level) {
-        case ThreatLevel::LOW: return "Low";
-        case ThreatLevel::MEDIUM: return "Medium";
-        case ThreatLevel::HIGH: return "High";
-        case ThreatLevel::CRITICAL: return "Critical";
-        default: return "Unknown";
+std::vector<Target> TargetDetector::detectRadarTargets(const std::vector<std::vector<double>>& raw_data) {
+    detected_targets_.clear();
+
+    for (const auto& signal : raw_data) {
+        if (auto target = processSignal(signal)) {
+            detected_targets_.push_back(*target);
+        }
     }
+
+    // C++20 Ranges Sort (Tehdit seviyesine göre sıralama - Büyükten küçüğe)
+    std::ranges::sort(detected_targets_, std::greater{});
+
+    return detected_targets_;
 }
 
-bool TargetDetector::isValidTarget(const Target& target) const noexcept {
-    return target.confidence >= noise_threshold &&
-           target.velocity >= 0.0 &&
-           std::isfinite(target.x) && std::isfinite(target.y) && std::isfinite(target.z);
-}
+std::optional<Target> TargetDetector::processSignal(const std::vector<double>& signal) {
+    if (signal.size() < 4) return std::nullopt;
 
-ThreatLevel TargetDetector::calculateThreatLevel(const Target& target) const noexcept {
-    if (target.velocity > 100.0 || target.confidence > 0.9) {
-        return ThreatLevel::CRITICAL;
-    } else if (target.velocity > 50.0 || target.confidence > 0.7) {
-        return ThreatLevel::HIGH;
-    } else if (target.velocity > 25.0 || target.confidence > 0.5) {
-        return ThreatLevel::MEDIUM;
+    double x = signal[0];
+    double y = signal[1];
+    double z = signal[2];
+    double velocity = signal[3];
+
+    // Basit bir güven skoru hesabı (Örnek: Sinyal gücüne bağlı varsayım)
+    double distance = std::sqrt(x*x + y*y + z*z);
+    double confidence = 1.0 / (1.0 + distance * 0.001); 
+
+    if (confidence < confidence_threshold_) {
+        return std::nullopt;
     }
+
+    ThreatLevel threat = calculateThreat(velocity, distance);
+    
+    return Target(
+        next_target_id_++,
+        x, y, z,
+        velocity,
+        confidence,
+        threat,
+        "Detected Signal"
+    );
+}
+
+ThreatLevel TargetDetector::calculateThreat(double velocity, double distance) const {
+    if (distance < 500.0 && std::abs(velocity) > 100.0) return ThreatLevel::CRITICAL;
+    if (distance < 1000.0) return ThreatLevel::HIGH;
+    if (std::abs(velocity) > 50.0) return ThreatLevel::MEDIUM;
     return ThreatLevel::LOW;
 }
 
-std::vector<Target> TargetDetector::detectRadarTargets(const std::vector<std::vector<double>>& radar_data) {
-    std::vector<Target> targets;
-    targets.reserve(std::min(radar_data.size(), static_cast<size_t>(500)));  // Prevent excessive memory usage
-    
-    // C++20 ranges for processing radar data
-    auto processed_targets = radar_data 
-        | std::views::filter([this](const auto& data_point) { 
-            return data_point.size() >= 4 && data_point[3] > noise_threshold; 
-          })
-        | std::views::transform([this](const auto& data_point) -> Target {
-            double x = data_point[0];
-            double y = data_point[1]; 
-            double z = data_point[2];
-            double signal_strength = data_point[3];
-            
-            double confidence = std::min(1.0, signal_strength / 100.0);
-            double velocity = std::hypot(x, y, z) * 0.1;
-            
-            return Target(
-                next_target_id++,
-                x, y, z,
-                velocity,
-                confidence,
-                calculateThreatLevel(Target{0, x, y, z, velocity, confidence, ThreatLevel::LOW}),
-                "Radar detected target"
-            );
-        })
-        | std::views::filter([this](const Target& target) { return isValidTarget(target); });
-    
-    std::ranges::copy(processed_targets, std::back_inserter(targets));
-    
-    filterNoise(targets);
-    prioritizeTargets(targets);
-    
-    for (auto& target : targets) {
-        addTarget(target);
-    }
-    
-    return targets;
-}
-
-void TargetDetector::filterNoise(std::vector<Target>& targets) noexcept {
-    // C++20 ranges version with in-place erase-remove idiom
-    auto new_end = std::ranges::remove_if(targets, [this](const Target& t) { 
-        return !isValidTarget(t); 
-    });
-    targets.erase(new_end.begin(), new_end.end());
-}
-
-void TargetDetector::prioritizeTargets(std::vector<Target>& targets) noexcept {
-    // C++20 three-way comparison operator usage
-    std::ranges::sort(targets, std::greater<>());
-}
-
-void TargetDetector::clearTargets() noexcept {
-    detected_targets.clear();
-}
-
-void TargetDetector::addTarget(const Target& target) {
-    detected_targets.push_back(target);
-}
-
-std::vector<Target> TargetDetector::getDetectedTargets() const {
-    return detected_targets;
-}
-
 void TargetDetector::printTargets() const {
-    std::cout << "\n=== Detected Targets ===\n";
-    std::cout << std::fixed << std::setprecision(2);
-    std::cout << std::setw(4) << "ID" << " | "
-              << std::setw(8) << "X" << " | "
-              << std::setw(8) << "Y" << " | "
-              << std::setw(8) << "Z" << " | "
-              << std::setw(8) << "Velocity" << " | "
-              << std::setw(10) << "Confidence" << " | "
-              << std::setw(8) << "Threat" << " | "
-              << "Description\n";
-    std::cout << std::string(70, '-') << "\n";
-    
-    for (const auto& target : detected_targets) {
-        std::cout << std::setw(4) << target.id << " | "
-                  << std::setw(8) << target.x << " | "
-                  << std::setw(8) << target.y << " | "
-                  << std::setw(8) << target.z << " | "
-                  << std::setw(8) << target.velocity << " | "
-                  << std::setw(10) << target.confidence << " | "
-                  << std::setw(8) << threatToString(target.threat_level) << " | "
-                  << target.description << "\n";
-    }
-}
-
-size_t TargetDetector::getTargetCount() const noexcept {
-    return detected_targets.size();
-}
-
-void TargetDetector::setNoiseThreshold(double threshold) noexcept {
-    noise_threshold = threshold;
-}
-
-double TargetDetector::getNoiseThreshold() const noexcept {
-    return noise_threshold;
-}
-
-void TargetDetector::setSensor(std::unique_ptr<SimpleSensor> new_sensor) noexcept {
-    sensor = std::move(new_sensor);
-}
-
-SimpleSensor* TargetDetector::getSensor() const noexcept {
-    return sensor.get();
-}
-
-std::vector<Target> TargetDetector::detectWithSensor(double center_x, double center_y) {
-    std::vector<Target> targets;
-    
-    if (!sensor) {
-        return targets;
-    }
-    
-    auto detections = sensor->scanForTargets(center_x, center_y);
-    
-    for (size_t i = 0; i < detections.size(); ++i) {
-        double distance = detections[i];
-        double angle = (i * 72.0) * M_PI / 180.0; // 72 degrees between 5 points
-        
-        double x = center_x + distance * cos(angle);
-        double y = center_y + distance * sin(angle);
-        double z = 0.0; // Simple 2D detection
-        
-        double confidence = std::max(0.5, 1.0 - distance / sensor->getRange());
-        double velocity = distance * 0.05; // Simple velocity calculation
-        
-        Target target(
-            next_target_id++,
-            x, y, z,
-            velocity,
-            confidence,
-            calculateThreatLevel(Target{0, x, y, z, velocity, confidence, ThreatLevel::LOW}),
-            "Sensor detected target"
-        );
-        
-        if (isValidTarget(target)) {
-            targets.push_back(target);
-            addTarget(target);
+    std::cout << "--- Detected Targets: " << detected_targets_.size() << " ---\n";
+    for (const auto& t : detected_targets_) {
+        std::string threat_str;
+        switch(t.threat_level) {
+            case ThreatLevel::CRITICAL: threat_str = "CRITICAL"; break;
+            case ThreatLevel::HIGH:     threat_str = "HIGH"; break;
+            case ThreatLevel::MEDIUM:   threat_str = "MEDIUM"; break;
+            case ThreatLevel::LOW:      threat_str = "LOW"; break;
         }
+        
+        std::cout << "ID: " << t.id 
+                  << " | Threat: " << threat_str 
+                  << " | Conf: " << t.confidence 
+                  << " | Vel: " << t.velocity << " m/s\n";
     }
-    
-    prioritizeTargets(targets);
-    return targets;
+}
+
+size_t TargetDetector::getTargetCount() const {
+    return detected_targets_.size();
 }
