@@ -1,4 +1,4 @@
-#include "TargetDetector.h"
+#include "../include/TargetDetector.h"
 #include <algorithm>
 #include <iostream>
 #include <iomanip>
@@ -6,6 +6,8 @@
 #include <random>
 #include <ranges>
 #include <format>
+#include <numbers>
+#include <cmath>
 
 TargetDetector::TargetDetector(double noise_thresh) 
     : next_target_id(1), noise_threshold(noise_thresh) {
@@ -42,9 +44,8 @@ ThreatLevel TargetDetector::calculateThreatLevel(const Target& target) const noe
 
 std::vector<Target> TargetDetector::detectRadarTargets(const std::vector<std::vector<double>>& radar_data) {
     std::vector<Target> targets;
-    targets.reserve(std::min(radar_data.size(), static_cast<size_t>(500)));  // Prevent excessive memory usage
+    targets.reserve(std::min(radar_data.size(), static_cast<size_t>(500)));
     
-    // C++20 ranges for processing radar data
     auto processed_targets = radar_data 
         | std::views::filter([this](const auto& data_point) { 
             return data_point.size() >= 4 && data_point[3] > noise_threshold; 
@@ -82,7 +83,6 @@ std::vector<Target> TargetDetector::detectRadarTargets(const std::vector<std::ve
 }
 
 void TargetDetector::filterNoise(std::vector<Target>& targets) noexcept {
-    // C++20 ranges version with in-place erase-remove idiom
     auto new_end = std::ranges::remove_if(targets, [this](const Target& t) { 
         return !isValidTarget(t); 
     });
@@ -90,7 +90,6 @@ void TargetDetector::filterNoise(std::vector<Target>& targets) noexcept {
 }
 
 void TargetDetector::prioritizeTargets(std::vector<Target>& targets) noexcept {
-    // C++20 three-way comparison operator usage
     std::ranges::sort(targets, std::greater<>());
 }
 
@@ -162,14 +161,16 @@ std::vector<Target> TargetDetector::detectWithSensor(double center_x, double cen
     
     for (size_t i = 0; i < detections.size(); ++i) {
         double distance = detections[i];
-        double angle = (i * 72.0) * M_PI / 180.0; // 72 degrees between 5 points
         
-        double x = center_x + distance * cos(angle);
-        double y = center_y + distance * sin(angle);
-        double z = 0.0; // Simple 2D detection
+        // DUZELTME BURADA: M_PI yerine std::numbers::pi kullanildi
+        double angle = (i * 72.0) * std::numbers::pi / 180.0; 
+        
+        double x = center_x + distance * std::cos(angle);
+        double y = center_y + distance * std::sin(angle);
+        double z = 0.0;
         
         double confidence = std::max(0.5, 1.0 - distance / sensor->getRange());
-        double velocity = distance * 0.05; // Simple velocity calculation
+        double velocity = distance * 0.05;
         
         Target target(
             next_target_id++,

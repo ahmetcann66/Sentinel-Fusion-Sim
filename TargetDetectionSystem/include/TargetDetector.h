@@ -11,6 +11,7 @@
 #include <concepts>
 #include <ranges>
 #include <random>
+#include <compare>
 
 enum class ThreatLevel : uint8_t {
     LOW = 0,
@@ -19,7 +20,6 @@ enum class ThreatLevel : uint8_t {
     CRITICAL = 3
 };
 
-// C++20 concept for valid target data
 template<typename T>
 concept TargetData = requires(T t) {
     { t.x } -> std::convertible_to<double>;
@@ -28,7 +28,6 @@ concept TargetData = requires(T t) {
     { t.confidence } -> std::convertible_to<double>;
 };
 
-// C++20 concept for radar data point
 template<typename T>
 concept RadarDataPoint = requires(T t) {
     { std::size(t) } -> std::convertible_to<std::size_t>;
@@ -49,24 +48,21 @@ struct Target {
     
     Target() = default;
     
-Target(int id, double x, double y, double z, double velocity, double confidence, 
+    Target(int id, double x, double y, double z, double velocity, double confidence, 
            ThreatLevel threat_level, std::string description = "")
         : id(id), x(x), y(y), z(z), velocity(velocity), confidence(confidence),
           threat_level(threat_level), detection_time(std::chrono::system_clock::now()), 
           description(std::move(description)) {}
     
-    // C++20 three-way comparison operator - optimized
-    [[nodiscard]] std::strong_ordering operator<=>(const Target& other) const noexcept {
-        if (threat_level != other.threat_level) {
-            return threat_level <=> other.threat_level;
-        }
+    [[nodiscard]]
+    std::partial_ordering operator<=>(const Target& other) const noexcept {
+        if (auto cmp = threat_level <=> other.threat_level; cmp != 0)
+            return cmp;
+
         return confidence <=> other.confidence;
     }
-    
-    bool operator==(const Target& other) const noexcept = default;
 };
 
-// Simple sensor class
 class SimpleSensor {
 private:
     std::mt19937 rng;
@@ -93,12 +89,12 @@ public:
     
     [[nodiscard]] std::vector<double> scanForTargets(double center_x, double center_y) noexcept {
         std::vector<double> detections;
-        detections.reserve(5);  // Pre-allocate known size
+        detections.reserve(5);
         
         for (int i = 0; i < 5; ++i) {
             double dx = center_x + i*10;
             double dy = center_y + i*10;
-            double distance = std::hypot(dx, dy);  // More efficient than sqrt(pow)
+            double distance = std::hypot(dx, dy);
             if (canDetect(distance)) {
                 double detection = getReading(distance);
                 if (detection > 0.1) {
@@ -129,33 +125,27 @@ public:
     explicit TargetDetector(double noise_thresh = 0.3);
     ~TargetDetector() = default;
     
-    // Radar detection methods
     std::vector<Target> detectRadarTargets(const std::vector<std::vector<double>>& radar_data);
     
-    // C++20 templated detection method with concepts
     template<std::ranges::range R>
     requires RadarDataPoint<std::ranges::range_value_t<R>>
     std::vector<Target> detectRadarTargets(const R& radar_data);
     
-    // Processing methods
     void filterNoise(std::vector<Target>& targets) noexcept;
     void prioritizeTargets(std::vector<Target>& targets) noexcept;
     
-    // Utility methods
     void clearTargets() noexcept;
     void addTarget(const Target& target);
     [[nodiscard]] std::vector<Target> getDetectedTargets() const;
     void printTargets() const;
     [[nodiscard]] size_t getTargetCount() const noexcept;
     
-    // Configuration
     void setNoiseThreshold(double threshold) noexcept;
     [[nodiscard]] double getNoiseThreshold() const noexcept;
     
-    // Sensor methods
     void setSensor(std::unique_ptr<SimpleSensor> new_sensor) noexcept;
     [[nodiscard]] SimpleSensor* getSensor() const noexcept;
     [[nodiscard]] std::vector<Target> detectWithSensor(double center_x, double center_y);
 };
 
-#endif
+#endif // TARGET_DETECTOR_H
