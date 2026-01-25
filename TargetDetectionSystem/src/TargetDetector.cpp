@@ -16,7 +16,7 @@ std::vector<Target> TargetDetector::detectRadarTargets(const std::vector<std::ve
         }
     }
 
-    // C++20 Ranges Sort (Tehdit seviyesine göre sıralama - Büyükten küçüğe)
+    
     std::ranges::sort(detected_targets_, std::greater{});
 
     return detected_targets_;
@@ -30,7 +30,7 @@ std::optional<Target> TargetDetector::processSignal(const std::vector<double>& s
     double z = signal[2];
     double velocity = signal[3];
 
-    // Basit bir güven skoru hesabı (Örnek: Sinyal gücüne bağlı varsayım)
+    
     double distance = std::sqrt(x*x + y*y + z*z);
     double confidence = 1.0 / (1.0 + distance * 0.001); 
 
