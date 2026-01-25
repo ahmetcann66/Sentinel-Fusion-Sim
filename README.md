@@ -352,8 +352,7 @@ public:
 ## 📄 Licensing and Citation
 
 ### License
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
-
+*****
 ### Citation
 If you use this software in your research, please cite:
 
@@ -378,10 +377,10 @@ If you use this software in your research, please cite:
 ## 🗺️ Future Development
 
 ### Version 3.0 Roadmap
-- **Q1 2025**: GPU acceleration module
-- **Q2 2025**: Machine learning integration
-- **Q3 2025**: Real-time multi-sensor fusion
-- **Q4 2025**: Distributed computing support
+- **Q1 2026**: GPU acceleration module
+- **Q2 2026**: Machine learning integration
+- **Q3 2026**: Real-time multi-sensor fusion
+- **Q4 2026**: Distributed computing support
 
 ### Long-term Vision
 - Quantum computing integration for optimization
