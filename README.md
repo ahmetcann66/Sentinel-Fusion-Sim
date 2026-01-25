@@ -371,10 +371,7 @@ If you use this software in your research, please cite:
 
 ## 📞 Contact and Support
 
-- **Technical Issues**: GitHub Issues
-- **Academic Collaboration**: [academic@example.com]
-- **Commercial Inquiries**: [commercial@example.com]
-- **Documentation**: [Wiki Link]
+
 
 ---
 
