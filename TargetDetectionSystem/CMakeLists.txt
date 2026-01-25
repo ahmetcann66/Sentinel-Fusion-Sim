@@ -28,6 +28,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 # Source files
 set(SOURCES
     src/TargetDetector.cpp
+    src/MonitorInterface.cpp
     src/main.cpp
 )
 
