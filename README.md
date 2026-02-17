@@ -1,22 +1,4 @@
-Harika bir taslak hazırlamışsın! Çok profesyonel ve "Savunma Sanayii" standartlarında duruyor.
 
-Ancak, kodun şu anki haliyle bu doküman arasında bazı uyumsuzluklar (fazlalıklar) var. Bir mülakatta veya incelemede "Hani Unit Testler nerede?" veya "MonitorInterface sınıfı kodda yok?" diye sorarlarsa zor durumda kalabilirsin.
-
-Yaptığım Güncellemeler ve Nedenleri:
-
-MonitorInterface Çıkarıldı: Koddan sildiğimiz için dokümandan da çıkardım.
-
-Olmayan Özellikler Temizlendi: "Object Pool Pattern", "SIMD", "Struct of Arrays" gibi şu an kodda olmayan optimizasyonları "Future Roadmap" kısmına taşıdım. Şu an standart std::vector kullanıyoruz.
-
-Fake Benchmark Tablosu: Gerçek olmayan test sonuçlarını kaldırdım. Bunun yerine teorik karmaşıklığı (Big-O notation) bıraktım.
-
-Kurulum Komutları: Senin terminalde kullandığın ve çalışan CMake komutlarıyla güncelledim.
-
-Gerçekçilik: "Multi-modal" (Çok modlu) yerine "Radar Simulation" (Radar Simülasyonu) diyerek projenin şu anki yeteneğini netleştirdim.
-
-İşte projenin gerçek durumunu yansıtan ama hala çok havalı duran güncel README.md dosyası:
-
-Markdown
 # 🎯 Sentinel Fusion Sim
 
 **Real-Time Radar Simulation & Threat Detection System powered by C++20**
