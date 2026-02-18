@@ -1,4 +1,3 @@
-
 # 🎯 Sentinel Fusion Sim
 
 **Real-Time Radar Simulation & Threat Detection System powered by C++20**
@@ -56,7 +55,7 @@ The system categorizes targets based on a combination of **Proximity** and **Vel
 
 * **`std::ranges` & `std::views`**: Used for readable and efficient data filtering and sorting.
 * **Three-Way Comparison (`operator<=>`)**: Simplifies the logic for sorting targets by "Threat Level" first, then "Confidence".
-* **`std::optional`**: safely handles invalid or noisy signals without using exceptions or null pointers.
+* **`std::optional`**: Safely handles invalid or noisy signals without using exceptions or null pointers.
 * **`std::chrono`**: Precise timing for simulation loops.
 
 ### Algorithmic Complexity
@@ -77,7 +76,7 @@ The system categorizes targets based on a combination of **Proximity** and **Vel
 
 ```bash
 # 1. Clone the repository
-git clone [https://github.com/YourUsername/Sentinel-Fusion-Sim.git](https://github.com/YourUsername/Sentinel-Fusion-Sim.git)
+git clone [https://github.com/ahmetcann66/Sentinel-Fusion-Sim.git](https://github.com/ahmetcann66/Sentinel-Fusion-Sim.git)
 cd Sentinel-Fusion-Sim/TargetDetectionSystem
 
 # 2. Configure the project
@@ -88,10 +87,7 @@ cmake --build build --config Debug
 
 # 4. Run the Simulation
 ./build/Debug/radar_detection.exe
-🎮 CLI Dashboard
-When running, the application acts as a command-line dashboard:
 
-Plaintext
 ========================================
       SENTINEL RADAR - LIVE FEED        
 ========================================
@@ -103,6 +99,7 @@ ID: 8  | Threat: CRITICAL | Conf: 0.92 | Vel: 250.0 m/s
 ID: 3  | Threat: HIGH     | Conf: 0.85 | Vel: 120.5 m/s
 ...
 [Scanning for new threats...]
+
 🗺️ Roadmap & Future Optimizations
 While the current version focuses on architectural correctness, the following performance upgrades are planned:
 
@@ -116,3 +113,5 @@ While the current version focuses on architectural correctness, the following pe
 
 📄 License
 This project is open-source and available under the MIT License.
+
+Developed by Ahmet Can Bozkurt
